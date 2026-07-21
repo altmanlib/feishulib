@@ -17,6 +17,9 @@ dependencies = [
 requires = ["uv_build>=0.11.28,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.uv]
+cache-dir = ".cache/uv"
+
 [tool.uv.build-backend]
 module-name = "feishulib"
 
@@ -29,6 +32,18 @@ dev = [
     "pytest-cov>=5",
     "ruff>=0.6",
 ]
+
+[tool.pytest.ini_options]
+cache_dir = ".cache/.pytest_cache"
+
+[tool.ruff]
+cache-dir = ".cache/.ruff_cache"
+
+[tool.coverage.run]
+data_file = ".cache/.coverage"
+
+[tool.coverage.html]
+directory = ".cache/htmlcov"
 
 [tool.pyright]
 include = ["src/feishulib"]
