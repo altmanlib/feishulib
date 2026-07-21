@@ -5,6 +5,7 @@ import pytest
 
 from feishulib.client import FeishuClient
 from feishulib.config import FeishuConfig
+from feishulib.exceptions import FeishuHttpStatusError
 
 
 @pytest.mark.asyncio
@@ -156,3 +157,123 @@ async def test_reply_message_preserves_explicit_uuid_across_transport_retry() ->
         await client.reply_text("om_1", "hello", uuid="caller-controlled-uuid")
 
     assert [body["uuid"] for body in message_bodies] == ["caller-controlled-uuid", "caller-controlled-uuid"]
+
+
+@pytest.mark.asyncio
+async def test_generic_request_sends_json_and_managed_tenant_token() -> None:
+    observed: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+        observed["method"] = request.method
+        observed["path"] = request.url.path
+        observed["params"] = dict(request.url.params)
+        observed["authorization"] = request.headers["Authorization"]
+        observed["caller_trace"] = request.headers["X-Caller-Trace"]
+        observed["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"code": 0, "data": {"items": [{"open_id": "ou_1"}]}}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        response = await client.request(
+            "POST",
+            "/open-apis/contact/v3/users/search",
+            params={"user_id_type": "open_id"},
+            json_body={"department_id": "0"},
+            headers={"X-Caller-Trace": "trace-1"},
+        )
+
+    assert response.data == {"items": [{"open_id": "ou_1"}]}
+    assert observed["method"] == "POST"
+    assert observed["path"] == "/open-apis/contact/v3/users/search"
+    assert observed["params"] == {"user_id_type": "open_id"}
+    assert observed["body"] == {"department_id": "0"}
+    assert observed["authorization"] == "Bearer tenant-token"
+    assert observed["caller_trace"] == "trace-1"
+
+
+@pytest.mark.asyncio
+async def test_generic_request_uses_explicit_token_without_refreshing_it() -> None:
+    paths: list[str] = []
+    authorizations: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path.endswith("tenant_access_token/internal"):
+            raise AssertionError("explicit token requests must not obtain a tenant token")
+        authorizations.append(request.headers["Authorization"])
+        return httpx.Response(200, json={"code": 0, "data": {"name": "Ada"}}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        response = await client.request("GET", "/open-apis/authen/v1/user_info", access_token="user-token")
+
+    assert response.data == {"name": "Ada"}
+    assert paths == ["/open-apis/authen/v1/user_info"]
+    assert authorizations == ["Bearer user-token"]
+
+
+@pytest.mark.asyncio
+async def test_generic_request_does_not_refresh_an_explicit_token_after_401() -> None:
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert request.headers["Authorization"] == "Bearer user-token"
+        return httpx.Response(401, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        with pytest.raises(FeishuHttpStatusError) as raised:
+            await client.request("GET", "/open-apis/authen/v1/user_info", access_token="user-token")
+
+    assert raised.value.status_code == 401
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_generic_request_retries_once_after_401_with_refreshed_managed_token() -> None:
+    token_calls = 0
+    authorizations: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal token_calls
+        if request.url.path.endswith("tenant_access_token/internal"):
+            token_calls += 1
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": f"t{token_calls}", "expire": 7200}, request=request)
+        authorizations.append(request.headers["Authorization"])
+        if request.headers["Authorization"] == "Bearer t1":
+            return httpx.Response(401, request=request)
+        return httpx.Response(200, json={"code": 0, "data": {"ok": True}}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        response = await client.request("GET", "/open-apis/any/v1/resource")
+
+    assert response.data == {"ok": True}
+    assert token_calls == 2
+    assert authorizations == ["Bearer t1", "Bearer t2"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "headers", "access_token", "message"),
+    [
+        ("https://open.feishu.cn/open-apis/contact/v3/users", None, None, "path must begin with /open-apis/"),
+        ("/callback/ws/endpoint", None, None, "path must begin with /open-apis/"),
+        ("/open-apis/contact/v3/users", {"authorization": "Bearer unsafe"}, None, "headers must not contain Authorization"),
+        ("/open-apis/contact/v3/users", None, "", "access_token must not be empty"),
+    ],
+)
+async def test_generic_request_rejects_ambiguous_or_non_open_api_inputs(
+    path: str,
+    headers: dict[str, str] | None,
+    access_token: str | None,
+    message: str,
+) -> None:
+    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500, request=request))) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        with pytest.raises(ValueError, match=message):
+            await client.request("GET", path, headers=headers, access_token=access_token)
