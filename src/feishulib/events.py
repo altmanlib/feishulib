@@ -2,11 +2,16 @@
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import cast
 
 from feishulib.exceptions import FeishuEventParseError
 from feishulib.models import JsonValue
+
+
+def _empty_raw_mapping() -> Mapping[str, JsonValue]:
+    return {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +43,9 @@ class MessageEvent:
     file_key: str | None
     root_id: str | None
     parent_id: str | None
+    create_time: datetime | None = None
+    raw_header: Mapping[str, JsonValue] = field(default_factory=_empty_raw_mapping)
+    raw_event: Mapping[str, JsonValue] = field(default_factory=_empty_raw_mapping)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +59,9 @@ class CardActionEvent:
     token: str | None
     message_id: str | None
     chat_id: str | None
+    create_time: datetime | None = None
+    raw_header: Mapping[str, JsonValue] = field(default_factory=_empty_raw_mapping)
+    raw_event: Mapping[str, JsonValue] = field(default_factory=_empty_raw_mapping)
 
 
 def parse_event_payload(payload: bytes) -> MessageEvent | CardActionEvent:
@@ -101,6 +112,9 @@ def _message_event(header: Mapping[str, object], event: Mapping[str, object]) ->
         file_key if isinstance(file_key, str) else None,
         _optional_str(message.get("root_id")),
         _optional_str(message.get("parent_id")),
+        _create_time(header.get("create_time")),
+        _raw_mapping(header),
+        _raw_mapping(event),
     )
 
 
@@ -123,7 +137,30 @@ def _card_event(header: Mapping[str, object], event: Mapping[str, object]) -> Ca
         _optional_str(event.get("token")),
         _optional_str(event.get("open_message_id")),
         _optional_str(event.get("open_chat_id")),
+        _create_time(header.get("create_time")),
+        _raw_mapping(header),
+        _raw_mapping(event),
     )
+
+
+def _create_time(value: object) -> datetime | None:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return None
+    try:
+        timestamp = int(value)
+    except ValueError:
+        return None
+    if timestamp < 0:
+        return None
+    timestamp_seconds = timestamp / 1_000 if timestamp >= 10_000_000_000 else timestamp
+    try:
+        return datetime.fromtimestamp(timestamp_seconds, UTC)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _raw_mapping(value: Mapping[str, object]) -> Mapping[str, JsonValue]:
+    return cast(Mapping[str, JsonValue], dict(value))
 
 
 def _content(raw_content: str | None) -> Mapping[str, JsonValue] | None:
