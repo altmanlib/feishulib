@@ -97,7 +97,12 @@ await client.delete_message("om_xxx")
 ```python
 content = await client.download_file("om_xxx", "file_key_xxx", resource_type="file")
 # resource_type can be "file" or "image"
+
+resource = await client.download_file_with_metadata("om_xxx", "file_key_xxx")
+print(resource.filename, resource.content_type, resource.content)
 ```
+
+`download_file()` remains the bytes-only convenience API. `download_file_with_metadata()` returns a `BinaryResponse`; its `filename` and `content_type` come from the resource download HTTP response and can be `None` when Feishu does not send the relevant headers.
 
 ### Bot Identity
 
@@ -134,6 +139,14 @@ async with FeishuClient(config) as client:
     async with FeishuWebSocket(config, channel) as ws:
         await ws.run_forever()
 ```
+
+### Event Metadata
+
+Both `MessageEvent` and `CardActionEvent` expose `create_time`, parsed from schema 2.0 `header.create_time` as a timezone-aware UTC `datetime`. Unix seconds and milliseconds are supported; missing or malformed values are represented as `None` without relaxing structural event validation.
+
+Both events also expose `raw_header` and `raw_event` mappings for forward-compatible access to unmodeled protocol fields. These mappings are untrusted input and must not be used to authenticate identities. Use `event.sender` for message identity and `event.operator` for card-action identity.
+
+For received file or media messages, event content provides resource keys such as `file_key` (and, for media, possibly `image_key`); it does not provide an authoritative filename or MIME type. Never derive either value from a resource key. To inspect download metadata, use `download_file_with_metadata()` and validate the returned response headers according to your application policy.
 
 ### Card Action Handling
 
