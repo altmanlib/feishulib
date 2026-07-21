@@ -1,6 +1,7 @@
 """Feishu long-connection lifecycle and frame dispatch."""
 
 import asyncio
+import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from enum import StrEnum
@@ -12,7 +13,7 @@ import websockets
 
 from feishu_im.channel import EventChannel
 from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import FeishuEventHandlerError, FeishuProtocolError, FeishuWebSocketError
+from feishu_im.exceptions import FeishuEventHandlerError, FeishuEventParseError, FeishuProtocolError, FeishuWebSocketError
 from feishu_im.http import FeishuHttpClient
 from feishu_im.protocol import FrameMethod, decode_frame, encode_frame, make_data_response, make_ping
 
@@ -32,6 +33,9 @@ class WebSocketConnection(Protocol):
 
 
 type Connector = Callable[[str], Awaitable[WebSocketConnection]]
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class FeishuWebSocket:
@@ -167,6 +171,9 @@ class FeishuWebSocket:
         try:
             async with asyncio.timeout(self.config.card_action_timeout_seconds):
                 result = await self._channel.dispatch(frame.payload)
+        except FeishuEventParseError as error:
+            _LOGGER.warning("Dropping unsupported or invalid Feishu event: %s", error)
+            status = 200
         except FeishuEventHandlerError:
             status = 503
         except TimeoutError:

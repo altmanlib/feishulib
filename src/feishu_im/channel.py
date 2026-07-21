@@ -92,7 +92,7 @@ class EventChannel:
                         item.result.set_result(None)
                 else:
                     response = await self._card_handler(item.event)
-                    if response is not None and not isinstance(response, CardActionResponse):
+                    if response is not None and not isinstance(response, CardActionResponse):  # type: ignore[unnecessary-isinstance]
                         raise TypeError("card_action handler must return CardActionResponse or None")
                     if not item.result.done():
                         item.result.set_result(response)
