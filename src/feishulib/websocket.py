@@ -22,7 +22,7 @@ from feishulib.exceptions import (
     FeishuWebSocketError,
 )
 from feishulib.http import FeishuHttpClient
-from feishulib.protocol import FrameMethod, decode_frame, encode_frame, make_data_response, make_ping
+from feishulib.protocol import FrameMethod, WireFrame, decode_frame, encode_frame, make_data_response, make_ping
 
 
 class ConnectionState(StrEnum):
@@ -184,8 +184,6 @@ class FeishuWebSocket:
             await self._handle_data(frame)
 
     async def _handle_data(self, frame: object) -> None:
-        from feishulib.protocol import WireFrame
-
         if not isinstance(frame, WireFrame):
             raise FeishuProtocolError("invalid data frame")
         if frame.headers.get("type") is None:
@@ -208,8 +206,6 @@ class FeishuWebSocket:
         await self._send(response)
 
     async def _send(self, frame: object) -> None:
-        from feishulib.protocol import WireFrame
-
         if not isinstance(frame, WireFrame):
             raise FeishuProtocolError("invalid outbound frame")
         async with self._write_lock:
