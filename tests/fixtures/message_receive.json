@@ -1,0 +1,1 @@
+{"schema":"2.0","header":{"event_type":"im.message.receive_v1","event_id":"evt_1"},"event":{"sender":{"sender_id":{"open_id":"ou_sender","user_id":"u_sender","union_id":"on_sender"}},"message":{"message_id":"om_message","chat_id":"oc_chat","chat_type":"group","message_type":"text","content":"{\"text\":\"hello\"}"}}}
