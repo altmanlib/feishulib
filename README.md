@@ -58,7 +58,16 @@ response = await client.request_raw(
 print(response.status_code, response.content)
 ```
 
-By default, the client obtains, caches, and refreshes a tenant access token. For an endpoint requiring a user or app access token, provide it explicitly; explicit tokens are not refreshed by the client:
+By default, the client obtains, caches, and refreshes a tenant access token. You can also obtain the managed token explicitly when calling an API that is not wrapped by a convenience method:
+
+```python
+tenant_access_token = await client.get_tenant_access_token()
+# Pass it to your own Feishu API integration as a Bearer token.
+```
+
+Use `force_refresh=True` to discard the cached token and fetch a fresh one. Treat the returned token as a secret and do not expose it to untrusted clients.
+
+For an endpoint requiring a user or app access token, provide it explicitly; explicit tokens are not refreshed by the client:
 
 ```python
 response = await client.request(

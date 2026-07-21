@@ -9,6 +9,25 @@ from feishulib.exceptions import FeishuHttpStatusError, FeishuTransientError
 
 
 @pytest.mark.asyncio
+async def test_get_tenant_access_token_exposes_cached_and_forced_refresh() -> None:
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        assert request.url.path.endswith("tenant_access_token/internal")
+        calls += 1
+        return httpx.Response(200, json={"code": 0, "tenant_access_token": f"t{calls}", "expire": 7200}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        assert await client.get_tenant_access_token() == "t1"
+        assert await client.get_tenant_access_token() == "t1"
+        assert await client.get_tenant_access_token(force_refresh=True) == "t2"
+
+    assert calls == 2
+
+
+@pytest.mark.asyncio
 async def test_send_text_uses_structured_content_and_tenant_token() -> None:
     observed: dict[str, object] = {}
 

@@ -45,6 +45,10 @@ class FeishuClient:
         if self._owns_session:
             await self._session.aclose()
 
+    async def get_tenant_access_token(self, *, force_refresh: bool = False) -> str:
+        """Return the cached tenant access token, refreshing it when requested."""
+        return await self._tokens.get_token(force_refresh=force_refresh)
+
     @staticmethod
     def _outbound_with_uuid(message: OutboundMessage) -> OutboundMessage:
         if message.uuid is not None:
