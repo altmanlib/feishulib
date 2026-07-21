@@ -1,7 +1,6 @@
 """Feishu long-connection lifecycle and frame dispatch."""
 
 import asyncio
-import contextlib
 import logging
 import random
 import time
@@ -77,13 +76,14 @@ class FeishuWebSocket:
         self._service_id = 0
         self._ping_interval = 120.0
         self._last_pong = time.monotonic()
+        self._received_frame_since_connect = False
 
     @property
     def state(self) -> ConnectionState:
         return self._state
 
     async def __aenter__(self) -> Self:
-        await self.start()
+        await self._channel.start()
         return self
 
     async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> None:
@@ -103,16 +103,16 @@ class FeishuWebSocket:
         while not self._closed:
             try:
                 await self.start()
-                attempt = 0
                 await self._receive_loop()
                 if not self._closed:
                     raise FeishuWebSocketError("WebSocket receive loop stopped unexpectedly")
             except _RECONNECTABLE_ERRORS:
                 if self._closed:
                     break
+                if self._received_frame_since_connect:
+                    attempt = 0
                 self._state = ConnectionState.RECONNECTING
-                with contextlib.suppress(FeishuWebSocketError):
-                    await self._close_connection()
+                await self._close_connection()
                 await self._sleep(self._reconnect_delay(attempt))
                 attempt += 1
             else:
@@ -130,12 +130,15 @@ class FeishuWebSocket:
             try:
                 await self._channel.close()
             finally:
-                if self._owns_session:
-                    await self._session.aclose()
-                self._state = ConnectionState.STOPPED
+                try:
+                    if self._owns_session:
+                        await self._session.aclose()
+                finally:
+                    self._state = ConnectionState.STOPPED
 
     async def _open_connection(self) -> None:
         self._state = ConnectionState.CONNECTING
+        self._received_frame_since_connect = False
         endpoint = await self._http.request_json(
             "POST",
             "/callback/ws/endpoint",
@@ -167,6 +170,7 @@ class FeishuWebSocket:
             try:
                 async with asyncio.timeout(self._ping_interval):
                     raw = await connection.recv()
+                    self._received_frame_since_connect = True
             except TimeoutError:
                 await self._send(make_ping(self._service_id))
                 if time.monotonic() - self._last_pong > self.config.ws_ping_timeout_seconds:
