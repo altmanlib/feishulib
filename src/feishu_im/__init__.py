@@ -4,6 +4,8 @@ __version__ = "0.1.0"
 
 from feishu_im.config import FeishuConfig
 from feishu_im.client import FeishuClient
+from feishu_im.channel import EventChannel
+from feishu_im.events import CardActionEvent, MessageEvent, OperatorIdentity, SenderIdentity
 from feishu_im.exceptions import (
     FeishuApiError,
     FeishuAuthError,
@@ -26,12 +28,15 @@ from feishu_im.models import (
     Toast,
     UpdateMessage,
 )
+from feishu_im.websocket import FeishuWebSocket
 
 __all__ = [
     "BinaryResponse",
     "BotIdentity",
     "CardActionResponse",
     "CardUpdate",
+    "CardActionEvent",
+    "EventChannel",
     "FeishuApiError",
     "FeishuAuthError",
     "FeishuConfig",
@@ -44,9 +49,13 @@ __all__ = [
     "FeishuTransientError",
     "FeishuWebSocketError",
     "MessageReceipt",
+    "MessageEvent",
+    "OperatorIdentity",
     "OutboundMessage",
     "ReplyMessage",
+    "SenderIdentity",
     "Toast",
     "UpdateMessage",
+    "FeishuWebSocket",
     "__version__",
 ]
