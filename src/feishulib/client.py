@@ -140,6 +140,7 @@ class FeishuClient:
         return await self._authorized_bytes(
             "GET",
             f"/open-apis/im/v1/messages/{quote(message_id, safe='')}/resources/{quote(file_key, safe='')}",
+            headers={"Content-Type": "application/json; charset=utf-8"},
             params={"type": resource_type},
         )
 
@@ -175,16 +176,21 @@ class FeishuClient:
         method: str,
         path: str,
         *,
+        headers: Mapping[str, str] | None = None,
         params: Mapping[str, str] | None = None,
     ) -> BinaryResponse:
         token = await self._tokens.get_token()
         try:
-            return await self._http.request_bytes(method, path, headers={"Authorization": f"Bearer {token}"}, params=params)
+            return await self._http.request_bytes(method, path, headers=self._authorization_headers(token, headers), params=params)
         except FeishuHttpStatusError as error:
             if error.status_code != 401:
                 raise
         token = await self._tokens.get_token(force_refresh=True)
-        return await self._http.request_bytes(method, path, headers={"Authorization": f"Bearer {token}"}, params=params)
+        return await self._http.request_bytes(method, path, headers=self._authorization_headers(token, headers), params=params)
+
+    @staticmethod
+    def _authorization_headers(token: str, headers: Mapping[str, str] | None) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token}", **(headers or {})}
 
     @staticmethod
     def _receipt(response: ApiResponse) -> MessageReceipt:
