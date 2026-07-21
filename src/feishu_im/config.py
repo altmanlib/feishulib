@@ -1,12 +1,12 @@
 """Runtime configuration for the Feishu IM client."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
 class FeishuConfig:
     app_id: str
-    app_secret: str
+    app_secret: str = field(repr=False)
     base_url: str = "https://open.feishu.cn"
     request_timeout_seconds: float = 10.0
     max_retries: int = 3

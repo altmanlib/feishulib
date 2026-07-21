@@ -3,6 +3,13 @@ import pytest
 from feishu_im.config import FeishuConfig
 
 
+def test_config_repr_does_not_expose_app_secret() -> None:
+    config = FeishuConfig(app_id="cli_test", app_secret="secret-value")
+
+    assert "cli_test" in repr(config)
+    assert "secret-value" not in repr(config)
+
+
 def test_config_has_safe_operational_defaults() -> None:
     config = FeishuConfig(app_id="cli_test", app_secret="secret")
 
