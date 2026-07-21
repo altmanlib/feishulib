@@ -35,7 +35,7 @@ All methods are on `FeishuClient`, used as an async context manager.
 
 ### Generic Open API Requests
 
-Use `request()` for a Feishu Open API JSON endpoint that is not yet available as a dedicated typed method. It accepts an HTTP method, a relative `/open-apis/` path, optional string query parameters, a JSON object body, and extra non-authentication headers.
+Use `request()` for a Feishu Open API endpoint that uses the standard JSON response envelope. It accepts an HTTP method, a relative `/open-apis/` path, optional string query parameters, a JSON object body, and extra non-authentication headers.
 
 ```python
 response = await client.request(
@@ -44,6 +44,18 @@ response = await client.request(
     params={"user_id_type": "open_id", "page_size": "50"},
 )
 print(response.data["items"])
+```
+
+Use `request_raw()` for every other official endpoint shape, including multipart uploads, arbitrary JSON values, form data, raw content, and binary responses. It returns the successful `httpx.Response` without interpreting Feishu's JSON business envelope.
+
+```python
+response = await client.request_raw(
+    "POST",
+    "/open-apis/drive/v1/medias/upload_all",
+    data={"parent_type": "explorer"},
+    files={"file": ("note.txt", b"hello", "text/plain")},
+)
+print(response.status_code, response.content)
 ```
 
 By default, the client obtains, caches, and refreshes a tenant access token. For an endpoint requiring a user or app access token, provide it explicitly; explicit tokens are not refreshed by the client:
@@ -56,7 +68,7 @@ response = await client.request(
 )
 ```
 
-`request()` only supports endpoints that use Feishu's standard JSON response envelope. It returns `ApiResponse` and raises the same transport and business exceptions as the dedicated methods. The `path` must begin with `/open-apis/`; do not supply an `Authorization` header because `access_token` is the explicit credential input.
+Both methods require a path beginning with `/open-apis/`; do not supply an `Authorization` header because `access_token` is the explicit credential input. `request()` returns `ApiResponse` and validates Feishu's business `code`; `request_raw()` returns the raw successful HTTP response. Generic `GET`, `HEAD`, `OPTIONS`, and `TRACE` calls retry transient failures by default. Generic unsafe methods do not retry unless `retry=True` is explicitly provided.
 
 ### Sending Messages
 

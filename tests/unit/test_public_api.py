@@ -16,5 +16,6 @@ def test_package_requires_the_generated_protobuf_runtime_range() -> None:
     )
 
 
-def test_feishu_client_exposes_generic_request() -> None:
+def test_feishu_client_exposes_generic_request_methods() -> None:
     assert callable(feishulib.FeishuClient.request)
+    assert callable(feishulib.FeishuClient.request_raw)
