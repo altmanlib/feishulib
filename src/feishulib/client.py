@@ -127,12 +127,21 @@ class FeishuClient:
         *,
         resource_type: Literal["file", "image"] = "file",
     ) -> bytes:
-        response = await self._authorized_bytes(
+        response = await self.download_file_with_metadata(message_id, file_key, resource_type=resource_type)
+        return response.content
+
+    async def download_file_with_metadata(
+        self,
+        message_id: str,
+        file_key: str,
+        *,
+        resource_type: Literal["file", "image"] = "file",
+    ) -> BinaryResponse:
+        return await self._authorized_bytes(
             "GET",
             f"/open-apis/im/v1/messages/{quote(message_id, safe='')}/resources/{quote(file_key, safe='')}",
             params={"type": resource_type},
         )
-        return response.content
 
     async def get_bot_identity(self) -> BotIdentity:
         response = await self._authorized_json("GET", "/open-apis/bot/v3/info")
