@@ -13,3 +13,7 @@ async with FeishuClient(config) as client:
 Supported REST calls include sending, replying to, updating and deleting messages, downloading message resources, and looking up bot identity. Event handling currently supports text-message reception and card actions.
 
 Never put an operator identity in card action values: handlers must trust only `CardActionEvent.operator`.
+
+## Write idempotency
+
+`send_message` and `reply_message` generate a UUID when the caller does not supply one. The same UUID is retained for transport retries and tenant-token refresh retries, reducing duplicate-message risk after an uncertain network failure. Supply `OutboundMessage.uuid` or `ReplyMessage.uuid` when an application needs to control the idempotency key across process boundaries.

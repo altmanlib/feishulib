@@ -1,8 +1,10 @@
 """High-level asynchronous Feishu IM and bot client."""
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Literal, Self
 from urllib.parse import quote
+from uuid import uuid4
 
 import httpx
 
@@ -43,7 +45,20 @@ class FeishuClient:
         if self._owns_session:
             await self._session.aclose()
 
+    @staticmethod
+    def _outbound_with_uuid(message: OutboundMessage) -> OutboundMessage:
+        if message.uuid is not None:
+            return message
+        return replace(message, uuid=str(uuid4()))
+
+    @staticmethod
+    def _reply_with_uuid(message: ReplyMessage) -> ReplyMessage:
+        if message.uuid is not None:
+            return message
+        return replace(message, uuid=str(uuid4()))
+
     async def send_message(self, message: OutboundMessage) -> MessageReceipt:
+        message = self._outbound_with_uuid(message)
         response = await self._authorized_json(
             "POST",
             "/open-apis/im/v1/messages",
@@ -73,6 +88,7 @@ class FeishuClient:
         return await self.send_message(OutboundMessage(receive_id, receive_id_type, "interactive", card, uuid))
 
     async def reply_message(self, message: ReplyMessage) -> MessageReceipt:
+        message = self._reply_with_uuid(message)
         response = await self._authorized_json(
             "POST",
             f"/open-apis/im/v1/messages/{quote(message.message_id, safe='')}/reply",

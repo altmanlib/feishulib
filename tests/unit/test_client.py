@@ -70,3 +70,63 @@ async def test_retries_401_once_and_reads_bot_identity() -> None:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         assert (await client.get_bot_identity()).open_id == "ou_bot"
     assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_send_text_generates_one_uuid_and_reuses_it_across_transport_retry() -> None:
+    message_bodies: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "token", "expire": 7200}, request=request)
+        message_bodies.append(json.loads(request.content))
+        if len(message_bodies) == 1:
+            return httpx.Response(500, request=request)
+        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_1"}}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(
+            FeishuConfig(
+                app_id="id",
+                app_secret="secret",
+                retry_jitter_ratio=0,
+                retry_backoff_base_seconds=0.001,
+                retry_max_delay_seconds=0.001,
+            ),
+            session=session,
+        )
+        await client.send_text("oc_1", "hello")
+
+    assert len(message_bodies) == 2
+    first_uuid = message_bodies[0]["uuid"]
+    assert isinstance(first_uuid, str)
+    assert first_uuid
+    assert [body["uuid"] for body in message_bodies] == [first_uuid, first_uuid]
+
+
+@pytest.mark.asyncio
+async def test_reply_message_preserves_explicit_uuid_across_transport_retry() -> None:
+    message_bodies: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "token", "expire": 7200}, request=request)
+        message_bodies.append(json.loads(request.content))
+        if len(message_bodies) == 1:
+            return httpx.Response(503, request=request)
+        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_2"}}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(
+            FeishuConfig(
+                app_id="id",
+                app_secret="secret",
+                retry_jitter_ratio=0,
+                retry_backoff_base_seconds=0.001,
+                retry_max_delay_seconds=0.001,
+            ),
+            session=session,
+        )
+        await client.reply_text("om_1", "hello", uuid="caller-controlled-uuid")
+
+    assert [body["uuid"] for body in message_bodies] == ["caller-controlled-uuid", "caller-controlled-uuid"]
