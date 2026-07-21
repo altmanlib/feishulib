@@ -3,9 +3,9 @@
 import asyncio
 import json
 import random
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterable, Awaitable, Callable, Iterable, Mapping, Sequence
 from email.message import Message
-from typing import cast
+from typing import IO, cast
 
 import httpx
 
@@ -20,6 +20,11 @@ from feishulib.models import ApiResponse, BinaryResponse, JsonValue
 
 type Sleep = Callable[[float], Awaitable[None]]
 type RandomFloat = Callable[[], float]
+type RequestContent = str | bytes | Iterable[bytes] | AsyncIterable[bytes]
+type RequestData = Mapping[str, str | bytes]
+type FileContent = str | bytes | IO[bytes]
+type FileUpload = FileContent | tuple[str | None, FileContent] | tuple[str | None, FileContent, str | None]
+type RequestFiles = Mapping[str, FileUpload] | Sequence[tuple[str, FileUpload]]
 
 _RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
@@ -56,8 +61,9 @@ class FeishuHttpClient:
         headers: Mapping[str, str] | None = None,
         params: Mapping[str, str] | None = None,
         json_body: Mapping[str, JsonValue] | None = None,
+        retry: bool = True,
     ) -> ApiResponse:
-        response = await self._request(method, path, headers=headers, params=params, json_body=json_body)
+        response = await self._request(method, path, headers=headers, params=params, json_body=json_body, retry=retry)
         body = self._json_object(response)
         return self._api_response(response, body)
 
@@ -69,7 +75,7 @@ class FeishuHttpClient:
         headers: Mapping[str, str] | None = None,
         params: Mapping[str, str] | None = None,
     ) -> BinaryResponse:
-        response = await self._request(method, path, headers=headers, params=params, json_body=None)
+        response = await self._request(method, path, headers=headers, params=params, json_body=None, retry=True)
         if "json" in response.headers.get("content-type", "").lower():
             self._api_response(response, self._json_object(response))
             raise FeishuProtocolError("binary endpoint returned a successful JSON envelope")
@@ -82,6 +88,32 @@ class FeishuHttpClient:
             request_id=self._request_id(response),
         )
 
+    async def request_raw(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        params: Mapping[str, str] | None = None,
+        json_body: Mapping[str, JsonValue] | JsonValue | None = None,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        retry: bool = True,
+    ) -> httpx.Response:
+        """Send an arbitrary Open API request and return its successful HTTP response."""
+        return await self._request(
+            method,
+            path,
+            headers=headers,
+            params=params,
+            json_body=json_body,
+            content=content,
+            data=data,
+            files=files,
+            retry=retry,
+        )
+
     async def _request(
         self,
         method: str,
@@ -89,14 +121,19 @@ class FeishuHttpClient:
         *,
         headers: Mapping[str, str] | None,
         params: Mapping[str, str] | None,
-        json_body: Mapping[str, JsonValue] | None,
+        json_body: Mapping[str, JsonValue] | JsonValue | None,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        retry: bool,
     ) -> httpx.Response:
         if not path.startswith(("/open-apis/", "/callback/")):
             raise ValueError("path must begin with /open-apis/ or /callback/")
         url = f"{self.config.base_url.rstrip('/')}{path}"
         last_status: int | None = None
         last_request_id: str | None = None
-        for attempt in range(self.config.max_retries + 1):
+        attempts = self.config.max_retries + 1 if retry else 1
+        for attempt in range(attempts):
             try:
                 response = await self._session.request(
                     method,
@@ -104,17 +141,20 @@ class FeishuHttpClient:
                     headers=headers,
                     params=params,
                     json=json_body,
+                    content=content,
+                    data=data,
+                    files=files,
                     timeout=self.config.request_timeout_seconds,
                 )
             except httpx.RequestError as error:
-                if attempt == self.config.max_retries:
+                if attempt == attempts - 1:
                     raise FeishuTransientError(None, attempt + 1) from error
                 await self._sleep(self._delay(attempt, None))
                 continue
             last_status = response.status_code
             last_request_id = self._request_id(response)
             if response.status_code in _RETRYABLE_STATUSES:
-                if attempt == self.config.max_retries:
+                if attempt == attempts - 1:
                     raise FeishuTransientError(response.status_code, attempt + 1, last_request_id)
                 await self._sleep(self._delay(attempt, response.headers.get("retry-after")))
                 continue
@@ -125,7 +165,7 @@ class FeishuHttpClient:
                     last_request_id,
                 )
             return response
-        raise FeishuTransientError(last_status, self.config.max_retries + 1, last_request_id)
+        raise FeishuTransientError(last_status, attempts, last_request_id)
 
     def _delay(self, attempt: int, retry_after: str | None) -> float:
         try:

@@ -11,7 +11,7 @@ import httpx
 from feishulib.auth import TenantAccessTokenManager
 from feishulib.config import FeishuConfig
 from feishulib.exceptions import FeishuApiError, FeishuHttpStatusError
-from feishulib.http import FeishuHttpClient
+from feishulib.http import FeishuHttpClient, RequestContent, RequestData, RequestFiles
 from feishulib.models import (
     ApiResponse,
     BinaryResponse,
@@ -163,9 +163,11 @@ class FeishuClient:
         json_body: Mapping[str, JsonValue] | None = None,
         headers: Mapping[str, str] | None = None,
         access_token: str | None = None,
+        retry: bool | None = None,
     ) -> ApiResponse:
         """Call a Feishu Open API endpoint that returns a standard JSON envelope."""
         self._validate_generic_request(path, headers, access_token)
+        should_retry = self._should_retry(method, retry)
         if access_token is not None:
             return await self._http.request_json(
                 method,
@@ -173,8 +175,58 @@ class FeishuClient:
                 headers=self._authorization_headers(access_token, headers),
                 params=params,
                 json_body=json_body,
+                retry=should_retry,
             )
-        return await self._authorized_json(method, path, params=params, json_body=json_body, headers=headers)
+        return await self._authorized_json(
+            method,
+            path,
+            params=params,
+            json_body=json_body,
+            headers=headers,
+            retry=should_retry,
+        )
+
+    async def request_raw(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Mapping[str, str] | None = None,
+        json_body: JsonValue | None = None,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        headers: Mapping[str, str] | None = None,
+        access_token: str | None = None,
+        retry: bool | None = None,
+    ) -> httpx.Response:
+        """Call an arbitrary Feishu Open API endpoint and return its HTTP response."""
+        self._validate_generic_request(path, headers, access_token)
+        self._validate_raw_body(json_body, content, data, files)
+        should_retry = self._should_retry(method, retry)
+        if access_token is not None:
+            return await self._http.request_raw(
+                method,
+                path,
+                headers=self._authorization_headers(access_token, headers),
+                params=params,
+                json_body=json_body,
+                content=content,
+                data=data,
+                files=files,
+                retry=should_retry,
+            )
+        return await self._authorized_raw(
+            method,
+            path,
+            params=params,
+            json_body=json_body,
+            content=content,
+            data=data,
+            files=files,
+            headers=headers,
+            retry=should_retry,
+        )
 
     async def _authorized_json(
         self,
@@ -184,6 +236,7 @@ class FeishuClient:
         params: Mapping[str, str] | None = None,
         json_body: Mapping[str, JsonValue] | None = None,
         headers: Mapping[str, str] | None = None,
+        retry: bool = True,
     ) -> ApiResponse:
         token = await self._tokens.get_token()
         try:
@@ -193,6 +246,7 @@ class FeishuClient:
                 headers=self._authorization_headers(token, headers),
                 params=params,
                 json_body=json_body,
+                retry=retry,
             )
         except FeishuHttpStatusError as error:
             if error.status_code != 401:
@@ -204,6 +258,49 @@ class FeishuClient:
             headers=self._authorization_headers(token, headers),
             params=params,
             json_body=json_body,
+            retry=retry,
+        )
+
+    async def _authorized_raw(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Mapping[str, str] | None,
+        json_body: JsonValue | None,
+        content: RequestContent | None,
+        data: RequestData | None,
+        files: RequestFiles | None,
+        headers: Mapping[str, str] | None,
+        retry: bool,
+    ) -> httpx.Response:
+        token = await self._tokens.get_token()
+        try:
+            return await self._http.request_raw(
+                method,
+                path,
+                headers=self._authorization_headers(token, headers),
+                params=params,
+                json_body=json_body,
+                content=content,
+                data=data,
+                files=files,
+                retry=retry,
+            )
+        except FeishuHttpStatusError as error:
+            if error.status_code != 401:
+                raise
+        token = await self._tokens.get_token(force_refresh=True)
+        return await self._http.request_raw(
+            method,
+            path,
+            headers=self._authorization_headers(token, headers),
+            params=params,
+            json_body=json_body,
+            content=content,
+            data=data,
+            files=files,
+            retry=retry,
         )
 
     @staticmethod
@@ -218,6 +315,24 @@ class FeishuClient:
             raise ValueError("headers must not contain Authorization")
         if access_token == "":
             raise ValueError("access_token must not be empty")
+
+    @staticmethod
+    def _validate_raw_body(
+        json_body: JsonValue | None,
+        content: RequestContent | None,
+        data: RequestData | None,
+        files: RequestFiles | None,
+    ) -> None:
+        if json_body is not None and (content is not None or data is not None or files is not None):
+            raise ValueError("json_body cannot be combined with content, data, or files")
+        if content is not None and (data is not None or files is not None):
+            raise ValueError("content cannot be combined with data or files")
+
+    @staticmethod
+    def _should_retry(method: str, retry: bool | None) -> bool:
+        if retry is not None:
+            return retry
+        return method.upper() in {"GET", "HEAD", "OPTIONS", "TRACE"}
 
     async def _authorized_bytes(
         self,
