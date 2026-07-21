@@ -5,7 +5,7 @@ import pytest
 
 from feishulib.client import FeishuClient
 from feishulib.config import FeishuConfig
-from feishulib.exceptions import FeishuHttpStatusError
+from feishulib.exceptions import FeishuHttpStatusError, FeishuTransientError
 
 
 @pytest.mark.asyncio
@@ -277,3 +277,97 @@ async def test_generic_request_rejects_ambiguous_or_non_open_api_inputs(
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         with pytest.raises(ValueError, match=message):
             await client.request("GET", path, headers=headers, access_token=access_token)
+
+
+@pytest.mark.asyncio
+async def test_generic_request_does_not_retry_unsafe_methods_by_default() -> None:
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        if request.url.path.endswith("tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+        calls += 1
+        return httpx.Response(500, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        with pytest.raises(FeishuTransientError) as raised:
+            await client.request("POST", "/open-apis/any/v1/resources", json_body={"name": "once"})
+
+    assert raised.value.attempts == 1
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_generic_request_retries_unsafe_methods_only_when_explicitly_enabled() -> None:
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        if request.url.path.endswith("tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+        calls += 1
+        if calls == 1:
+            return httpx.Response(503, request=request)
+        return httpx.Response(200, json={"code": 0, "data": {"name": "retried"}}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(
+            FeishuConfig(
+                app_id="id",
+                app_secret="secret",
+                retry_jitter_ratio=0,
+                retry_backoff_base_seconds=0.001,
+                retry_max_delay_seconds=0.001,
+            ),
+            session=session,
+        )
+        response = await client.request("POST", "/open-apis/any/v1/resources", json_body={"name": "retry"}, retry=True)
+
+    assert response.data == {"name": "retried"}
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_generic_raw_request_supports_multipart_upload_and_binary_response() -> None:
+    observed: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+        observed["authorization"] = request.headers["Authorization"]
+        observed["content_type"] = request.headers["Content-Type"]
+        observed["body"] = request.content
+        return httpx.Response(201, headers={"Content-Type": "application/octet-stream"}, content=b"uploaded", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        response = await client.request_raw(
+            "POST",
+            "/open-apis/drive/v1/medias/upload_all",
+            data={"parent_type": "explorer"},
+            files={"file": ("note.txt", b"hello", "text/plain")},
+        )
+
+    assert response.status_code == 201
+    assert response.content == b"uploaded"
+    assert observed["authorization"] == "Bearer tenant-token"
+    assert isinstance(observed["content_type"], str)
+    assert observed["content_type"].startswith("multipart/form-data; boundary=")
+    assert b'name="parent_type"' in bytes(observed["body"])
+    assert b'filename="note.txt"' in bytes(observed["body"])
+    assert b"hello" in bytes(observed["body"])
+
+
+@pytest.mark.asyncio
+async def test_generic_raw_request_rejects_conflicting_body_encodings() -> None:
+    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500, request=request))) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        with pytest.raises(ValueError, match="json_body cannot be combined with content, data, or files"):
+            await client.request_raw(
+                "POST",
+                "/open-apis/any/v1/resources",
+                json_body={"name": "json"},
+                content=b"raw",
+            )
