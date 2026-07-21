@@ -3,6 +3,7 @@
 __version__ = "0.1.0"
 
 from feishu_im.config import FeishuConfig
+from feishu_im.client import FeishuClient
 from feishu_im.exceptions import (
     FeishuApiError,
     FeishuAuthError,
@@ -34,6 +35,7 @@ __all__ = [
     "FeishuApiError",
     "FeishuAuthError",
     "FeishuConfig",
+    "FeishuClient",
     "FeishuError",
     "FeishuEventHandlerError",
     "FeishuEventParseError",
