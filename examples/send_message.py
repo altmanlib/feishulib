@@ -3,7 +3,7 @@
 import asyncio
 import os
 
-from feishu_im import FeishuClient, FeishuConfig, OutboundMessage
+from feishulib import FeishuClient, FeishuConfig, OutboundMessage
 from _common import load_dotenv
 
 

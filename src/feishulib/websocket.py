@@ -12,17 +12,17 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import websockets
 
-from feishu_im.channel import EventChannel
-from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import (
+from feishulib.channel import EventChannel
+from feishulib.config import FeishuConfig
+from feishulib.exceptions import (
     FeishuEventHandlerError,
     FeishuEventParseError,
     FeishuProtocolError,
     FeishuTransientError,
     FeishuWebSocketError,
 )
-from feishu_im.http import FeishuHttpClient
-from feishu_im.protocol import FrameMethod, decode_frame, encode_frame, make_data_response, make_ping
+from feishulib.http import FeishuHttpClient
+from feishulib.protocol import FrameMethod, decode_frame, encode_frame, make_data_response, make_ping
 
 
 class ConnectionState(StrEnum):
@@ -184,7 +184,7 @@ class FeishuWebSocket:
             await self._handle_data(frame)
 
     async def _handle_data(self, frame: object) -> None:
-        from feishu_im.protocol import WireFrame
+        from feishulib.protocol import WireFrame
 
         if not isinstance(frame, WireFrame):
             raise FeishuProtocolError("invalid data frame")
@@ -208,7 +208,7 @@ class FeishuWebSocket:
         await self._send(response)
 
     async def _send(self, frame: object) -> None:
-        from feishu_im.protocol import WireFrame
+        from feishulib.protocol import WireFrame
 
         if not isinstance(frame, WireFrame):
             raise FeishuProtocolError("invalid outbound frame")

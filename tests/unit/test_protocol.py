@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from feishu_im.exceptions import FeishuProtocolError
-from feishu_im.protocol import FrameMethod, WireFrame, decode_frame, encode_frame, make_data_response, make_ping
+from feishulib.exceptions import FeishuProtocolError
+from feishulib.protocol import FrameMethod, WireFrame, decode_frame, encode_frame, make_data_response, make_ping
 
 
 def test_ping_frame_matches_static_feishu_wire_fixture() -> None:

@@ -10,9 +10,9 @@ from types import MappingProxyType
 
 from google.protobuf.message import DecodeError, EncodeError
 
-from feishu_im.exceptions import FeishuProtocolError
-from feishu_im.models import JsonValue
-from feishu_im.proto import frame_pb2
+from feishulib.exceptions import FeishuProtocolError
+from feishulib.models import JsonValue
+from feishulib.proto import frame_pb2
 
 
 class FrameMethod(IntEnum):

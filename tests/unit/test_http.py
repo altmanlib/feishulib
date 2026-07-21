@@ -1,9 +1,9 @@
 import httpx
 import pytest
 
-from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import FeishuApiError, FeishuHttpStatusError, FeishuProtocolError, FeishuTransientError
-from feishu_im.http import FeishuHttpClient, redact_headers
+from feishulib.config import FeishuConfig
+from feishulib.exceptions import FeishuApiError, FeishuHttpStatusError, FeishuProtocolError, FeishuTransientError
+from feishulib.http import FeishuHttpClient, redact_headers
 
 
 async def _record_sleep(target: list[float], delay: float) -> None:

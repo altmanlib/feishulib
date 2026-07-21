@@ -1,7 +1,7 @@
 import importlib.util
 from pathlib import Path
 
-from feishu_im.events import MessageEvent, SenderIdentity
+from feishulib.events import MessageEvent, SenderIdentity
 
 
 def _reply_for_message(event: MessageEvent, *, bot_open_id: str) -> str | None:
@@ -32,7 +32,7 @@ def _event(*, text: str | None, sender_open_id: str | None = "ou_user") -> Messa
 
 
 def test_reply_for_message_echoes_user_text() -> None:
-    assert not Path("src/feishu_im/chat_bot.py").exists()
+    assert not Path("src/feishulib/chat_bot.py").exists()
     assert _reply_for_message(_event(text="hello"), bot_open_id="ou_bot") == "你说：hello"
 
 

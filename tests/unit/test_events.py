@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from feishu_im.events import CardActionEvent, MessageEvent, parse_event_payload
-from feishu_im.exceptions import FeishuEventParseError
+from feishulib.events import CardActionEvent, MessageEvent, parse_event_payload
+from feishulib.exceptions import FeishuEventParseError
 
 
 def test_message_receive_parses_text_and_sender_identity() -> None:

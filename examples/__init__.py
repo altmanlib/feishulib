@@ -1,1 +1,1 @@
-"""Runnable examples for feishu-im-client."""
+"""Runnable examples for feishulib."""

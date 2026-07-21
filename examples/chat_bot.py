@@ -4,8 +4,8 @@ import asyncio
 import os
 from pathlib import Path
 
-from feishu_im import EventChannel, FeishuClient, FeishuConfig, FeishuWebSocket
-from feishu_im.events import MessageEvent
+from feishulib import EventChannel, FeishuClient, FeishuConfig, FeishuWebSocket
+from feishulib.events import MessageEvent
 
 
 def load_dotenv(path: Path = Path(".env")) -> None:

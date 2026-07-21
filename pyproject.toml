@@ -1,5 +1,5 @@
 [project]
-name = "feishu-im-client"
+name = "feishulib"
 version = "0.1.0"
 description = "Async Pythonic Feishu IM client"
 readme = "README.md"
@@ -18,7 +18,7 @@ requires = ["uv_build>=0.11.28,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = "feishu_im"
+module-name = "feishulib"
 
 [dependency-groups]
 dev = [
@@ -31,8 +31,8 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["src/feishu_im"]
-exclude = ["tests", "src/feishu_im/proto"]
+include = ["src/feishulib"]
+exclude = ["tests", "src/feishulib/proto"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = "none"

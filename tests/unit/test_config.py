@@ -1,6 +1,6 @@
 import pytest
 
-from feishu_im.config import FeishuConfig
+from feishulib.config import FeishuConfig
 
 
 def test_config_repr_does_not_expose_app_secret() -> None:

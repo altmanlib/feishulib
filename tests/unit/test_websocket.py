@@ -5,11 +5,11 @@ from pathlib import Path
 import httpx
 import pytest
 
-from feishu_im.channel import EventChannel
-from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import FeishuWebSocketError
-from feishu_im.protocol import FrameMethod, WireFrame, decode_frame
-from feishu_im.websocket import ConnectionState, FeishuWebSocket
+from feishulib.channel import EventChannel
+from feishulib.config import FeishuConfig
+from feishulib.exceptions import FeishuWebSocketError
+from feishulib.protocol import FrameMethod, WireFrame, decode_frame
+from feishulib.websocket import ConnectionState, FeishuWebSocket
 
 
 class _Connection:
@@ -144,7 +144,7 @@ async def test_default_connector_uses_configured_open_and_close_timeouts(monkeyp
         observed.update(kwargs)
         return connection
 
-    monkeypatch.setattr("feishu_im.websocket.websockets.connect", connect)
+    monkeypatch.setattr("feishulib.websocket.websockets.connect", connect)
     config = FeishuConfig(
         app_id="id",
         app_secret="secret",

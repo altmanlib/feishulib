@@ -1,9 +1,9 @@
-# feishu-im-client
+# feishulib
 
 An asynchronous, typed client for selected Feishu IM REST operations and long-connection events. It has no runtime dependency on `lark_oapi`.
 
 ```python
-from feishu_im import FeishuClient, FeishuConfig
+from feishulib import FeishuClient, FeishuConfig
 
 config = FeishuConfig(app_id="cli_x", app_secret="secret")
 async with FeishuClient(config) as client:

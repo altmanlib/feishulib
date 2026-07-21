@@ -4,10 +4,10 @@ import asyncio
 import time
 from collections.abc import Callable
 
-from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import FeishuAuthError, FeishuError
-from feishu_im.http import FeishuHttpClient
-from feishu_im.models import JsonValue
+from feishulib.config import FeishuConfig
+from feishulib.exceptions import FeishuAuthError, FeishuError
+from feishulib.http import FeishuHttpClient
+from feishulib.models import JsonValue
 
 
 class TenantAccessTokenManager:

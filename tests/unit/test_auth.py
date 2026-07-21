@@ -4,10 +4,10 @@ import json
 import httpx
 import pytest
 
-from feishu_im.auth import TenantAccessTokenManager
-from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import FeishuAuthError
-from feishu_im.http import FeishuHttpClient
+from feishulib.auth import TenantAccessTokenManager
+from feishulib.config import FeishuConfig
+from feishulib.exceptions import FeishuAuthError
+from feishulib.http import FeishuHttpClient
 
 
 @pytest.mark.asyncio

@@ -1,14 +1,14 @@
 from importlib.metadata import requires
 
-import feishu_im
+import feishulib
 
 
 def test_package_exposes_a_stable_version() -> None:
-    assert feishu_im.__version__ == "0.1.0"
+    assert feishulib.__version__ == "0.1.0"
 
 
 def test_package_requires_the_generated_protobuf_runtime_range() -> None:
-    package_requirements = requires("feishu-im-client") or []
+    package_requirements = requires("feishulib") or []
 
     assert any(
         requirement.replace(" ", "") == "protobuf>=7.35.0,<8"

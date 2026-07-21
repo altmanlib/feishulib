@@ -3,8 +3,8 @@ import json
 import httpx
 import pytest
 
-from feishu_im.client import FeishuClient
-from feishu_im.config import FeishuConfig
+from feishulib.client import FeishuClient
+from feishulib.config import FeishuConfig
 
 
 @pytest.mark.asyncio

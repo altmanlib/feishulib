@@ -5,8 +5,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import cast
 
-from feishu_im.exceptions import FeishuEventParseError
-from feishu_im.models import JsonValue
+from feishulib.exceptions import FeishuEventParseError
+from feishulib.models import JsonValue
 
 
 @dataclass(frozen=True, slots=True)

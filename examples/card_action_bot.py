@@ -3,9 +3,9 @@
 import asyncio
 import os
 
-from feishu_im import CardActionResponse, EventChannel, FeishuConfig, FeishuWebSocket, Toast
+from feishulib import CardActionResponse, EventChannel, FeishuConfig, FeishuWebSocket, Toast
 from _common import load_dotenv
-from feishu_im.events import CardActionEvent
+from feishulib.events import CardActionEvent
 
 
 async def main() -> None:

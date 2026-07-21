@@ -6,5 +6,5 @@ trap 'rm -rf "$build_dir"' EXIT
 
 uv run ruff check .
 uv run pyright
-uv run pytest --cov=src/feishu_im --cov-fail-under=80 --cov-report=term-missing
+uv run pytest --cov=src/feishulib --cov-fail-under=80 --cov-report=term-missing
 uv build --out-dir "$build_dir"

@@ -8,11 +8,11 @@ from uuid import uuid4
 
 import httpx
 
-from feishu_im.auth import TenantAccessTokenManager
-from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import FeishuApiError, FeishuHttpStatusError
-from feishu_im.http import FeishuHttpClient
-from feishu_im.models import (
+from feishulib.auth import TenantAccessTokenManager
+from feishulib.config import FeishuConfig
+from feishulib.exceptions import FeishuApiError, FeishuHttpStatusError
+from feishulib.http import FeishuHttpClient
+from feishulib.models import (
     ApiResponse,
     BinaryResponse,
     BotIdentity,

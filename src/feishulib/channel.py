@@ -4,10 +4,10 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from feishu_im.config import FeishuConfig
-from feishu_im.events import CardActionEvent, MessageEvent, parse_event_payload
-from feishu_im.exceptions import FeishuEventHandlerError
-from feishu_im.models import CardActionResponse
+from feishulib.config import FeishuConfig
+from feishulib.events import CardActionEvent, MessageEvent, parse_event_payload
+from feishulib.exceptions import FeishuEventHandlerError
+from feishulib.models import CardActionResponse
 
 type EventHandler[TEvent, TResult] = Callable[[TEvent], Awaitable[TResult]]
 

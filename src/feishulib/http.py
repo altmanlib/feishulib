@@ -9,14 +9,14 @@ from typing import cast
 
 import httpx
 
-from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import (
+from feishulib.config import FeishuConfig
+from feishulib.exceptions import (
     FeishuApiError,
     FeishuHttpStatusError,
     FeishuProtocolError,
     FeishuTransientError,
 )
-from feishu_im.models import ApiResponse, BinaryResponse, JsonValue
+from feishulib.models import ApiResponse, BinaryResponse, JsonValue
 
 type Sleep = Callable[[float], Awaitable[None]]
 type RandomFloat = Callable[[], float]

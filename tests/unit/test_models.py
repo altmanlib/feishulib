@@ -1,6 +1,6 @@
 import json
 
-from feishu_im.models import CardActionResponse, OutboundMessage, Toast
+from feishulib.models import CardActionResponse, OutboundMessage, Toast
 
 
 def test_outbound_message_serializes_structured_content_once() -> None:

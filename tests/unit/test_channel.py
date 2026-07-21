@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from feishu_im.channel import EventChannel
-from feishu_im.config import FeishuConfig
-from feishu_im.events import MessageEvent
-from feishu_im.exceptions import FeishuEventHandlerError
-from feishu_im.models import CardActionResponse, Toast
+from feishulib.channel import EventChannel
+from feishulib.config import FeishuConfig
+from feishulib.events import MessageEvent
+from feishulib.exceptions import FeishuEventHandlerError
+from feishulib.models import CardActionResponse, Toast
 
 
 def _message_payload() -> bytes:
