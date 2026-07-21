@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 
@@ -6,6 +7,7 @@ import pytest
 
 from feishu_im.channel import EventChannel
 from feishu_im.config import FeishuConfig
+from feishu_im.exceptions import FeishuWebSocketError
 from feishu_im.protocol import FrameMethod, WireFrame, decode_frame
 from feishu_im.websocket import ConnectionState, FeishuWebSocket
 
@@ -130,3 +132,137 @@ async def test_invalid_card_handler_result_is_reported_as_retryable_failure() ->
 
         assert _response_code(connection) == 503
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_default_connector_uses_configured_open_and_close_timeouts(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: dict[str, object] = {}
+    connection = _Connection()
+
+    async def connect(url: str, **kwargs: object) -> _Connection:
+        observed["url"] = url
+        observed.update(kwargs)
+        return connection
+
+    monkeypatch.setattr("feishu_im.websocket.websockets.connect", connect)
+    config = FeishuConfig(
+        app_id="id",
+        app_secret="secret",
+        ws_open_timeout_seconds=12.0,
+        ws_close_timeout_seconds=7.0,
+    )
+    client = FeishuWebSocket(config, EventChannel(config))
+
+    await client._connect("wss://example.test/ws")
+
+    assert observed == {
+        "url": "wss://example.test/ws",
+        "ping_interval": None,
+        "open_timeout": 12.0,
+        "close_timeout": 7.0,
+    }
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_reconnect_delay_applies_configured_jitter() -> None:
+    config = FeishuConfig(
+        app_id="id",
+        app_secret="secret",
+        ws_reconnect_base_seconds=4.0,
+        ws_reconnect_max_seconds=60.0,
+        ws_reconnect_jitter_ratio=0.25,
+    )
+    low = FeishuWebSocket(config, EventChannel(config), random_float=lambda: 0.0)
+    high = FeishuWebSocket(config, EventChannel(config), random_float=lambda: 1.0)
+
+    assert low._reconnect_delay(0) == 3.0
+    assert high._reconnect_delay(0) == 5.0
+
+    await low.close()
+    await high.close()
+
+
+class _BlockingConnection(_Connection):
+    def __init__(self) -> None:
+        super().__init__()
+        self._released = asyncio.Event()
+
+    async def recv(self) -> bytes:
+        await self._released.wait()
+        raise OSError("closed")
+
+    async def close(self) -> None:
+        self.closed = True
+        self._released.set()
+
+
+@pytest.mark.asyncio
+async def test_run_forever_retries_an_initial_connector_failure() -> None:
+    connection = _BlockingConnection()
+    connector_calls = 0
+    delays: list[float] = []
+    connected = asyncio.Event()
+
+    async def endpoint(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"code": 0, "data": {"URL": "wss://example.test/ws?service_id=7"}},
+            request=request,
+        )
+
+    async def connector(url: str) -> _BlockingConnection:
+        nonlocal connector_calls
+        connector_calls += 1
+        if connector_calls == 1:
+            raise OSError("temporary connector failure")
+        connected.set()
+        return connection
+
+    async def sleep(delay: float) -> None:
+        delays.append(delay)
+
+    config = FeishuConfig(app_id="id", app_secret="secret", ws_reconnect_jitter_ratio=0)
+    channel = EventChannel(config)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session:
+        client = FeishuWebSocket(
+            config,
+            channel,
+            session=session,
+            connector=connector,
+            sleep=sleep,
+            random_float=lambda: 0.0,
+        )
+        runner = asyncio.create_task(client.run_forever())
+        await asyncio.wait_for(connected.wait(), timeout=0.2)
+        await client.close()
+        await asyncio.wait_for(runner, timeout=0.2)
+
+    assert connector_calls == 2
+    assert delays == [config.ws_reconnect_base_seconds]
+    assert connection.closed
+
+
+class _SlowCloseConnection(_Connection):
+    async def close(self) -> None:
+        await asyncio.Event().wait()
+
+
+@pytest.mark.asyncio
+async def test_close_timeout_still_closes_channel_and_sets_stopped_state() -> None:
+    config = FeishuConfig(app_id="id", app_secret="secret", ws_close_timeout_seconds=0.01)
+    channel = EventChannel(config)
+
+    async def connector(url: str) -> _Connection:
+        return _Connection()
+
+    client = FeishuWebSocket(config, channel, connector=connector)
+    client._connection = _SlowCloseConnection()
+    await channel.start()
+
+    with pytest.raises(FeishuWebSocketError, match="close timed out"):
+        await asyncio.wait_for(client.close(), timeout=0.2)
+
+    assert client.state is ConnectionState.STOPPED
+    with pytest.raises(RuntimeError, match="closed"):
+        channel.on("message", lambda event: asyncio.sleep(0))

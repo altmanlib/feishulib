@@ -1,7 +1,9 @@
 """Feishu long-connection lifecycle and frame dispatch."""
 
 import asyncio
+import contextlib
 import logging
+import random
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from enum import StrEnum
@@ -13,7 +15,13 @@ import websockets
 
 from feishu_im.channel import EventChannel
 from feishu_im.config import FeishuConfig
-from feishu_im.exceptions import FeishuEventHandlerError, FeishuEventParseError, FeishuProtocolError, FeishuWebSocketError
+from feishu_im.exceptions import (
+    FeishuEventHandlerError,
+    FeishuEventParseError,
+    FeishuProtocolError,
+    FeishuTransientError,
+    FeishuWebSocketError,
+)
 from feishu_im.http import FeishuHttpClient
 from feishu_im.protocol import FrameMethod, decode_frame, encode_frame, make_data_response, make_ping
 
@@ -33,7 +41,10 @@ class WebSocketConnection(Protocol):
 
 
 type Connector = Callable[[str], Awaitable[WebSocketConnection]]
+type Sleep = Callable[[float], Awaitable[None]]
+type RandomFloat = Callable[[], float]
 
+_RECONNECTABLE_ERRORS = (OSError, TimeoutError, websockets.WebSocketException, FeishuTransientError, FeishuWebSocketError)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,6 +59,8 @@ class FeishuWebSocket:
         *,
         session: httpx.AsyncClient | None = None,
         connector: Connector | None = None,
+        sleep: Sleep = asyncio.sleep,
+        random_float: RandomFloat = random.random,
     ) -> None:
         self.config = config
         self._channel = channel
@@ -55,6 +68,8 @@ class FeishuWebSocket:
         self._session = session if session is not None else httpx.AsyncClient()
         self._http = FeishuHttpClient(config, self._session)
         self._connector = connector or self._connect
+        self._sleep = sleep
+        self._random_float = random_float
         self._state = ConnectionState.STOPPED
         self._connection: WebSocketConnection | None = None
         self._closed = False
@@ -83,21 +98,23 @@ class FeishuWebSocket:
             await self._open_connection()
 
     async def run_forever(self) -> None:
-        """Receive frames, reconnecting after unexpected failures."""
-        await self.start()
+        """Receive frames and retry transient connection failures until closed."""
         attempt = 0
         while not self._closed:
             try:
+                await self.start()
+                attempt = 0
                 await self._receive_loop()
-            except (OSError, websockets.WebSocketException, FeishuWebSocketError):
+                if not self._closed:
+                    raise FeishuWebSocketError("WebSocket receive loop stopped unexpectedly")
+            except _RECONNECTABLE_ERRORS:
                 if self._closed:
                     break
                 self._state = ConnectionState.RECONNECTING
-                await self._close_connection()
-                delay = min(self.config.ws_reconnect_max_seconds, self.config.ws_reconnect_base_seconds * 2**attempt)
-                await asyncio.sleep(delay)
+                with contextlib.suppress(FeishuWebSocketError):
+                    await self._close_connection()
+                await self._sleep(self._reconnect_delay(attempt))
                 attempt += 1
-                await self._open_connection()
             else:
                 break
 
@@ -107,11 +124,15 @@ class FeishuWebSocket:
             return
         self._closed = True
         self._state = ConnectionState.CLOSING
-        await self._close_connection()
-        await self._channel.close()
-        if self._owns_session:
-            await self._session.aclose()
-        self._state = ConnectionState.STOPPED
+        try:
+            await self._close_connection()
+        finally:
+            try:
+                await self._channel.close()
+            finally:
+                if self._owns_session:
+                    await self._session.aclose()
+                self._state = ConnectionState.STOPPED
 
     async def _open_connection(self) -> None:
         self._state = ConnectionState.CONNECTING
@@ -191,15 +212,37 @@ class FeishuWebSocket:
             await self._require_connection().send(encode_frame(frame))
 
     async def _close_connection(self) -> None:
-        if self._connection is not None:
-            await self._connection.close()
-            self._connection = None
+        connection = self._connection
+        self._connection = None
+        if connection is None:
+            return
+        try:
+            async with asyncio.timeout(self.config.ws_close_timeout_seconds):
+                await connection.close()
+        except TimeoutError as error:
+            raise FeishuWebSocketError("WebSocket close timed out") from error
 
     def _require_connection(self) -> WebSocketConnection:
         if self._connection is None:
             raise FeishuWebSocketError("WebSocket is not connected")
         return self._connection
 
-    @staticmethod
-    async def _connect(url: str) -> WebSocketConnection:
-        return cast(WebSocketConnection, await websockets.connect(url, ping_interval=None))
+    async def _connect(self, url: str) -> WebSocketConnection:
+        return cast(
+            WebSocketConnection,
+            await websockets.connect(
+                url,
+                ping_interval=None,
+                open_timeout=self.config.ws_open_timeout_seconds,
+                close_timeout=self.config.ws_close_timeout_seconds,
+            ),
+        )
+
+    def _reconnect_delay(self, attempt: int) -> float:
+        base = min(
+            self.config.ws_reconnect_max_seconds,
+            self.config.ws_reconnect_base_seconds * 2**attempt,
+        )
+        jitter = base * self.config.ws_reconnect_jitter_ratio
+        random_value = min(1.0, max(0.0, self._random_float()))
+        return min(self.config.ws_reconnect_max_seconds, base - jitter + 2 * jitter * random_value)
