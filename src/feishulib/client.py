@@ -154,6 +154,28 @@ class FeishuClient:
             raise FeishuApiError(0, "bot identity response has no open_id", response.request_id)
         return BotIdentity(open_id)
 
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Mapping[str, str] | None = None,
+        json_body: Mapping[str, JsonValue] | None = None,
+        headers: Mapping[str, str] | None = None,
+        access_token: str | None = None,
+    ) -> ApiResponse:
+        """Call a Feishu Open API endpoint that returns a standard JSON envelope."""
+        self._validate_generic_request(path, headers, access_token)
+        if access_token is not None:
+            return await self._http.request_json(
+                method,
+                path,
+                headers=self._authorization_headers(access_token, headers),
+                params=params,
+                json_body=json_body,
+            )
+        return await self._authorized_json(method, path, params=params, json_body=json_body, headers=headers)
+
     async def _authorized_json(
         self,
         method: str,
@@ -161,15 +183,41 @@ class FeishuClient:
         *,
         params: Mapping[str, str] | None = None,
         json_body: Mapping[str, JsonValue] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> ApiResponse:
         token = await self._tokens.get_token()
         try:
-            return await self._http.request_json(method, path, headers={"Authorization": f"Bearer {token}"}, params=params, json_body=json_body)
+            return await self._http.request_json(
+                method,
+                path,
+                headers=self._authorization_headers(token, headers),
+                params=params,
+                json_body=json_body,
+            )
         except FeishuHttpStatusError as error:
             if error.status_code != 401:
                 raise
         token = await self._tokens.get_token(force_refresh=True)
-        return await self._http.request_json(method, path, headers={"Authorization": f"Bearer {token}"}, params=params, json_body=json_body)
+        return await self._http.request_json(
+            method,
+            path,
+            headers=self._authorization_headers(token, headers),
+            params=params,
+            json_body=json_body,
+        )
+
+    @staticmethod
+    def _validate_generic_request(
+        path: str,
+        headers: Mapping[str, str] | None,
+        access_token: str | None,
+    ) -> None:
+        if not path.startswith("/open-apis/"):
+            raise ValueError("path must begin with /open-apis/")
+        if headers is not None and any(name.lower() == "authorization" for name in headers):
+            raise ValueError("headers must not contain Authorization")
+        if access_token == "":
+            raise ValueError("access_token must not be empty")
 
     async def _authorized_bytes(
         self,
