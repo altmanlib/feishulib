@@ -17,6 +17,9 @@ dependencies = [
 requires = ["uv_build>=0.11.28,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+module-name = "feishu_im"
+
 [dependency-groups]
 dev = [
     "grpcio-tools>=1.66",
@@ -29,7 +32,7 @@ dev = [
 
 [tool.pyright]
 include = ["src/feishu_im"]
-exclude = ["tests"]
+exclude = ["tests", "src/feishu_im/proto"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = "none"
