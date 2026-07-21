@@ -1,9 +1,12 @@
+import asyncio
 from pathlib import Path
 
 import pytest
 
 from feishu_im.channel import EventChannel
 from feishu_im.config import FeishuConfig
+from feishu_im.events import MessageEvent
+from feishu_im.exceptions import FeishuEventHandlerError
 from feishu_im.models import CardActionResponse, Toast
 
 
@@ -47,3 +50,53 @@ async def test_card_action_returns_worker_response() -> None:
     await channel.close()
     assert result is not None
     assert result.to_payload()["toast"]["content"] == "Approved"
+
+
+@pytest.mark.asyncio
+async def test_close_cancels_active_handler_and_unblocks_dispatch() -> None:
+    started = asyncio.Event()
+    channel = EventChannel(FeishuConfig(app_id="cli_test", app_secret="secret"))
+
+    async def handler(event: MessageEvent) -> None:
+        started.set()
+        await asyncio.Event().wait()
+
+    channel.on("message", handler)
+    await channel.start()
+    dispatch_task = asyncio.create_task(channel.dispatch(_message_payload()))
+    await asyncio.wait_for(started.wait(), timeout=0.2)
+
+    await asyncio.wait_for(channel.close(), timeout=0.2)
+
+    with pytest.raises(FeishuEventHandlerError) as raised:
+        await dispatch_task
+    assert raised.value.event_type == "shutdown"
+
+
+@pytest.mark.asyncio
+async def test_cancelled_dispatch_does_not_break_the_worker() -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+    handled: list[str] = []
+    channel = EventChannel(FeishuConfig(app_id="cli_test", app_secret="secret"))
+
+    async def handler(event: MessageEvent) -> None:
+        handled.append(event.message_id)
+        if len(handled) == 1:
+            started.set()
+            await release.wait()
+
+    channel.on("message", handler)
+    await channel.start()
+    first_dispatch = asyncio.create_task(channel.dispatch(_message_payload()))
+    await asyncio.wait_for(started.wait(), timeout=0.2)
+    first_dispatch.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await first_dispatch
+
+    release.set()
+    await channel.dispatch(_message_payload())
+    await channel.close()
+
+    assert handled == ["om_message", "om_message"]

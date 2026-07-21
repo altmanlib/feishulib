@@ -85,12 +85,22 @@ class EventChannel:
                 if isinstance(item.event, MessageEvent):
                     for handler in self._message_handlers:
                         await handler(item.event)
-                    item.result.set_result(None)
+                    if not item.result.done():
+                        item.result.set_result(None)
                 elif self._card_handler is None:
-                    item.result.set_result(None)
+                    if not item.result.done():
+                        item.result.set_result(None)
                 else:
-                    item.result.set_result(await self._card_handler(item.event))
-            except BaseException as error:
+                    response = await self._card_handler(item.event)
+                    if response is not None and not isinstance(response, CardActionResponse):
+                        raise TypeError("card_action handler must return CardActionResponse or None")
+                    if not item.result.done():
+                        item.result.set_result(response)
+            except asyncio.CancelledError as error:
+                if not item.result.done():
+                    item.result.set_exception(FeishuEventHandlerError("shutdown", error))
+                raise
+            except Exception as error:
                 if not item.result.done():
                     item.result.set_exception(FeishuEventHandlerError("handler", error))
             finally:
