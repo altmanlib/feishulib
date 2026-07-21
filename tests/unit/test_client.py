@@ -39,7 +39,7 @@ async def test_reply_update_delete_and_download_quote_path_parameters() -> None:
         if request.url.path.endswith("internal"):
             return httpx.Response(200, json={"code": 0, "tenant_access_token": "t", "expire": 7200}, request=request)
         if "/resources/" in request.url.path:
-            return httpx.Response(200, headers={"Content-Disposition": 'attachment; filename="x.txt"'}, content=b"file", request=request)
+            return httpx.Response(200, headers={"Content-Disposition": 'attachment; filename="x.txt"', "Content-Type": "text/plain; charset=utf-8"}, content=b"file", request=request)
         return httpx.Response(200, json={"code": 0, "data": {"message_id": "om"}}, request=request)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
@@ -49,6 +49,27 @@ async def test_reply_update_delete_and_download_quote_path_parameters() -> None:
         await client.delete_message("om/a")
         assert await client.download_file("om/a", "key/a") == b"file"
     assert any("om%2Fa/reply" in path or "om/a/reply" in path for path in paths)
+
+
+@pytest.mark.asyncio
+async def test_download_file_with_metadata_preserves_response_metadata() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "t", "expire": 7200}, request=request)
+        return httpx.Response(
+            200,
+            headers={"Content-Disposition": 'attachment; filename="x.txt"', "Content-Type": "text/plain; charset=utf-8"},
+            content=b"file",
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+        client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
+        response = await client.download_file_with_metadata("om/a", "key/a")
+
+    assert response.content == b"file"
+    assert response.filename == "x.txt"
+    assert response.content_type == "text/plain"
 
 
 @pytest.mark.asyncio
