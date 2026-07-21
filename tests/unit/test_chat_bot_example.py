@@ -1,6 +1,17 @@
+import importlib.util
+from pathlib import Path
+
 from feishu_im.events import MessageEvent, SenderIdentity
 
-from feishu_im.chat_bot import reply_for_message
+
+def _reply_for_message(event: MessageEvent, *, bot_open_id: str) -> str | None:
+    path = Path("examples/chat_bot.py")
+    specification = importlib.util.spec_from_file_location("chat_bot_example", path)
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module.reply_for_message(event, bot_open_id=bot_open_id)
 
 
 def _event(*, text: str | None, sender_open_id: str | None = "ou_user") -> MessageEvent:
@@ -21,9 +32,10 @@ def _event(*, text: str | None, sender_open_id: str | None = "ou_user") -> Messa
 
 
 def test_reply_for_message_echoes_user_text() -> None:
-    assert reply_for_message(_event(text="hello"), bot_open_id="ou_bot") == "你说：hello"
+    assert not Path("src/feishu_im/chat_bot.py").exists()
+    assert _reply_for_message(_event(text="hello"), bot_open_id="ou_bot") == "你说：hello"
 
 
 def test_reply_for_message_ignores_bot_and_non_text_messages() -> None:
-    assert reply_for_message(_event(text="loop", sender_open_id="ou_bot"), bot_open_id="ou_bot") is None
-    assert reply_for_message(_event(text=None), bot_open_id="ou_bot") is None
+    assert _reply_for_message(_event(text="loop", sender_open_id="ou_bot"), bot_open_id="ou_bot") is None
+    assert _reply_for_message(_event(text=None), bot_open_id="ou_bot") is None
