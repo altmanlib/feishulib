@@ -1,1 +1,1 @@
-{"schema":"2.0","header":{"event_type":"card.action.trigger","event_id":"evt_card"},"event":{"operator":{"open_id":"ou_verified"},"action":{"value":{"open_id":"ou_forged"}}}}
+{"schema":"2.0","header":{"event_type":"card.action.trigger","event_id":"evt_card","create_time":"1784615400123","tenant_key":"tenant_card"},"event":{"operator":{"open_id":"ou_verified"},"action":{"value":{"open_id":"ou_forged"}}}}
