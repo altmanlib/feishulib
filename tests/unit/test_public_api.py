@@ -14,3 +14,7 @@ def test_package_requires_the_generated_protobuf_runtime_range() -> None:
         requirement.replace(" ", "") == "protobuf>=7.35.0,<8"
         for requirement in package_requirements
     )
+
+
+def test_feishu_client_exposes_generic_request() -> None:
+    assert callable(feishulib.FeishuClient.request)

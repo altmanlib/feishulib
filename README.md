@@ -33,6 +33,31 @@ async with FeishuClient(config) as client:
 
 All methods are on `FeishuClient`, used as an async context manager.
 
+### Generic Open API Requests
+
+Use `request()` for a Feishu Open API JSON endpoint that is not yet available as a dedicated typed method. It accepts an HTTP method, a relative `/open-apis/` path, optional string query parameters, a JSON object body, and extra non-authentication headers.
+
+```python
+response = await client.request(
+    "GET",
+    "/open-apis/contact/v3/users",
+    params={"user_id_type": "open_id", "page_size": "50"},
+)
+print(response.data["items"])
+```
+
+By default, the client obtains, caches, and refreshes a tenant access token. For an endpoint requiring a user or app access token, provide it explicitly; explicit tokens are not refreshed by the client:
+
+```python
+response = await client.request(
+    "GET",
+    "/open-apis/authen/v1/user_info",
+    access_token=user_access_token,
+)
+```
+
+`request()` only supports endpoints that use Feishu's standard JSON response envelope. It returns `ApiResponse` and raises the same transport and business exceptions as the dedicated methods. The `path` must begin with `/open-apis/`; do not supply an `Authorization` header because `access_token` is the explicit credential input.
+
 ### Sending Messages
 
 ```python
