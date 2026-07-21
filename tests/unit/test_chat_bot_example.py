@@ -1,6 +1,6 @@
 from feishu_im.events import MessageEvent, SenderIdentity
 
-from examples.chat_bot import reply_for_message
+from feishu_im.chat_bot import reply_for_message
 
 
 def _event(*, text: str | None, sender_open_id: str | None = "ou_user") -> MessageEvent:
