@@ -4,7 +4,7 @@ import asyncio
 import os
 
 from feishu_im import FeishuClient, FeishuConfig
-from feishu_im.chat_bot import load_dotenv
+from _common import load_dotenv
 
 CARD = {"config": {"wide_screen_mode": True}, "elements": [{"tag": "div", "text": {"tag": "lark_md", "content": "**Hello** from a card"}}]}
 

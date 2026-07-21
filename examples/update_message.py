@@ -4,7 +4,7 @@ import asyncio
 import os
 
 from feishu_im import FeishuClient, FeishuConfig, UpdateMessage
-from feishu_im.chat_bot import load_dotenv
+from _common import load_dotenv
 
 
 CARD = {"elements": [{"tag": "div", "text": {"tag": "plain_text", "content": "Updated card"}}]}

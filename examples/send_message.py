@@ -4,7 +4,7 @@ import asyncio
 import os
 
 from feishu_im import FeishuClient, FeishuConfig, OutboundMessage
-from feishu_im.chat_bot import load_dotenv
+from _common import load_dotenv
 
 
 async def main() -> None:

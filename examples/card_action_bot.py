@@ -4,7 +4,7 @@ import asyncio
 import os
 
 from feishu_im import CardActionResponse, EventChannel, FeishuConfig, FeishuWebSocket, Toast
-from feishu_im.chat_bot import load_dotenv
+from _common import load_dotenv
 from feishu_im.events import CardActionEvent
 
 
