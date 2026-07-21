@@ -53,9 +53,13 @@ async def test_reply_update_delete_and_download_quote_path_parameters() -> None:
 
 @pytest.mark.asyncio
 async def test_download_file_with_metadata_preserves_response_metadata() -> None:
+    resource_content_type: str | None = None
+
     async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal resource_content_type
         if request.url.path.endswith("tenant_access_token/internal"):
             return httpx.Response(200, json={"code": 0, "tenant_access_token": "t", "expire": 7200}, request=request)
+        resource_content_type = request.headers.get("Content-Type")
         return httpx.Response(
             200,
             headers={"Content-Disposition": 'attachment; filename="x.txt"', "Content-Type": "text/plain; charset=utf-8"},
@@ -68,6 +72,7 @@ async def test_download_file_with_metadata_preserves_response_metadata() -> None
         response = await client.download_file_with_metadata("om/a", "key/a")
 
     assert response.content == b"file"
+    assert resource_content_type == "application/json; charset=utf-8"
     assert response.filename == "x.txt"
     assert response.content_type == "text/plain"
 
