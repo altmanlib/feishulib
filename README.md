@@ -20,14 +20,52 @@ Requires Python >= 3.12.
 
 ## Quick Start
 
+`feishulib` is asynchronous. Put your API calls inside an `async def` function and start it with `asyncio.run()`:
+
 ```python
+import asyncio
+import os
+
 from feishulib import FeishuClient, FeishuConfig
 
-config = FeishuConfig(app_id="cli_xxx", app_secret="your_secret")
-async with FeishuClient(config) as client:
-    receipt = await client.send_text("oc_xxx", "Hello from feishulib!")
-    print(receipt.message_id)
+
+async def main() -> None:
+    config = FeishuConfig(
+        app_id=os.environ["FEISHU_APP_ID"],
+        app_secret=os.environ["FEISHU_APP_SECRET"],
+    )
+
+    async with FeishuClient(config) as client:
+        receipt = await client.send_text(
+            os.environ["FEISHU_RECEIVE_ID"],
+            "Hello from feishulib!",
+        )
+        print(receipt.message_id)
+
+
+asyncio.run(main())
 ```
+
+Set the credentials before running the script. Environment variables keep secrets out of source code:
+
+```bash
+export FEISHU_APP_ID="cli_xxx"
+export FEISHU_APP_SECRET="your_secret"
+export FEISHU_RECEIVE_ID="oc_xxx"
+uv run your_script.py
+```
+
+The `async with` block closes the HTTP client automatically. For more complete runnable examples, see the [`examples/`](examples/) directory.
+
+### Common entry points
+
+- `send_text()` / `send_card()` — send messages
+- `reply_text()` / `reply_message()` — reply to messages
+- `update_message()` / `delete_message()` — modify or delete messages
+- `download_file()` — download message resources
+- `request()` — call standard Feishu JSON APIs not yet wrapped by the library
+- `request_raw()` — call other APIs, including uploads and binary endpoints
+- `get_tenant_access_token()` — obtain the library-managed tenant token
 
 ## REST API
 
