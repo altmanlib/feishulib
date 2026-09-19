@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-import httpx
+import httpx2
 import pytest
 
 from feishulib.auth import TenantAccessTokenManager
@@ -14,15 +14,15 @@ from feishulib.http import FeishuHttpClient
 async def test_concurrent_first_use_fetches_only_one_token() -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         calls += 1
         assert request.url.path == "/open-apis/auth/v3/tenant_access_token/internal"
         assert json.loads(request.content) == {"app_id": "cli_test", "app_secret": "secret"}
         await asyncio.sleep(0)
-        return httpx.Response(200, json={"code": 0, "tenant_access_token": "t_1", "expire": 7200}, request=request)
+        return httpx2.Response(200, json={"code": 0, "tenant_access_token": "t_1", "expire": 7200}, request=request)
 
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     http = FeishuHttpClient(FeishuConfig(app_id="cli_test", app_secret="secret"), session)
     manager = TenantAccessTokenManager(http.config, http)
 
@@ -41,12 +41,12 @@ async def test_refreshes_proactively_and_force_refreshes_once() -> None:
     def clock() -> float:
         return now
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(200, json={"code": 0, "tenant_access_token": f"t_{calls}", "expire": 120}, request=request)
+        return httpx2.Response(200, json={"code": 0, "tenant_access_token": f"t_{calls}", "expire": 120}, request=request)
 
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     http = FeishuHttpClient(FeishuConfig(app_id="id", app_secret="secret"), session)
     manager = TenantAccessTokenManager(http.config, http, clock=clock)
     assert await manager.get_token() == "t_1"
@@ -59,10 +59,10 @@ async def test_refreshes_proactively_and_force_refreshes_once() -> None:
 
 @pytest.mark.asyncio
 async def test_rejects_bad_token_response_without_leaking_secret() -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"code": 0, "tenant_access_token": "", "expire": 0}, request=request)
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"code": 0, "tenant_access_token": "", "expire": 0}, request=request)
 
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     config = FeishuConfig(app_id="id", app_secret="secret-value")
     manager = TenantAccessTokenManager(config, FeishuHttpClient(config, session))
     with pytest.raises(FeishuAuthError) as raised:

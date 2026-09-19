@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import Protocol, Self, cast
 from urllib.parse import parse_qs, urlparse
 
-import httpx
+import httpx2
 import websockets
 
 from feishulib.channel import EventChannel
@@ -63,7 +63,7 @@ class FeishuWebSocket:
         config: FeishuConfig,
         channel: EventChannel,
         *,
-        session: httpx.AsyncClient | None = None,
+        session: httpx2.AsyncClient | None = None,
         connector: Connector | None = None,
         sleep: Sleep = asyncio.sleep,
         random_float: RandomFloat = random.random,
@@ -71,7 +71,7 @@ class FeishuWebSocket:
         self.config = config
         self._channel = channel
         self._owns_session = session is None
-        self._session = session if session is not None else httpx.AsyncClient()
+        self._session = session if session is not None else httpx2.AsyncClient()
         self._http = FeishuHttpClient(config, self._session)
         self._connector = connector or self._connect
         self._sleep = sleep

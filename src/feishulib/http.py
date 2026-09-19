@@ -14,7 +14,7 @@ from collections.abc import (
 from email.message import Message
 from typing import IO, cast
 
-import httpx
+import httpx2
 
 from feishulib.config import FeishuConfig
 from feishulib.exceptions import (
@@ -50,7 +50,7 @@ class FeishuHttpClient:
     def __init__(
         self,
         config: FeishuConfig,
-        session: httpx.AsyncClient,
+        session: httpx2.AsyncClient,
         *,
         sleep: Sleep = asyncio.sleep,
         random_float: RandomFloat = random.random,
@@ -107,7 +107,7 @@ class FeishuHttpClient:
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         retry: bool = True,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         """Send an arbitrary Open API request and return its successful HTTP response."""
         return await self._request(
             method,
@@ -133,7 +133,7 @@ class FeishuHttpClient:
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         retry: bool,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         if not path.startswith(("/open-apis/", "/callback/")):
             raise ValueError("path must begin with /open-apis/ or /callback/")
         url = f"{self.config.base_url.rstrip('/')}{path}"
@@ -153,7 +153,7 @@ class FeishuHttpClient:
                     files=files,
                     timeout=self.config.request_timeout_seconds,
                 )
-            except httpx.RequestError as error:
+            except httpx2.RequestError as error:
                 if attempt == attempts - 1:
                     raise FeishuTransientError(None, attempt + 1) from error
                 await self._sleep(self._delay(attempt, None))
@@ -187,7 +187,7 @@ class FeishuHttpClient:
         )
         return delay + delay * self.config.retry_jitter_ratio * self._random_float()
 
-    def _api_response(self, response: httpx.Response, body: Mapping[str, object]) -> ApiResponse:
+    def _api_response(self, response: httpx2.Response, body: Mapping[str, object]) -> ApiResponse:
         code = body.get("code")
         if not isinstance(code, int) or isinstance(code, bool):
             raise FeishuProtocolError("JSON response code must be an integer")
@@ -210,7 +210,7 @@ class FeishuHttpClient:
         )
 
     @staticmethod
-    def _json_object(response: httpx.Response) -> Mapping[str, object]:
+    def _json_object(response: httpx2.Response) -> Mapping[str, object]:
         try:
             body = response.json()
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
@@ -220,11 +220,11 @@ class FeishuHttpClient:
         return cast(Mapping[str, object], body)
 
     @staticmethod
-    def _request_id(response: httpx.Response) -> str | None:
+    def _request_id(response: httpx2.Response) -> str | None:
         return response.headers.get("x-request-id") or response.headers.get("x-tt-logid")
 
     @staticmethod
-    def _safe_message(response: httpx.Response) -> str:
+    def _safe_message(response: httpx2.Response) -> str:
         try:
             body = response.json()
         except (json.JSONDecodeError, UnicodeDecodeError):

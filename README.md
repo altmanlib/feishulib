@@ -6,7 +6,7 @@ A lightweight, asynchronous, typed Python client for the Feishu IM API. No runti
 
 - **REST API** — send, reply, update, delete messages; download resources; query bot identity
 - **Long-connection events** — receive text messages and card actions over persistent WebSocket
-- **Async-native** — built on `httpx` and `websockets` with `asyncio`
+- **Async-native** — built on `httpx2` and `websockets` with `asyncio`
 - **Typed** — fully annotated public API, strict Pyright validation
 - **Resilient** — automatic tenant-token refresh, HTTP retry with backoff, WebSocket reconnection with exponential backoff and jitter
 
@@ -84,7 +84,7 @@ response = await client.request(
 print(response.data["items"])
 ```
 
-Use `request_raw()` for every other official endpoint shape, including multipart uploads, arbitrary JSON values, form data, raw content, and binary responses. It returns the successful `httpx.Response` without interpreting Feishu's JSON business envelope.
+Use `request_raw()` for every other official endpoint shape, including multipart uploads, arbitrary JSON values, form data, raw content, and binary responses. It returns the successful `httpx2.Response` without interpreting Feishu's JSON business envelope.
 
 ```python
 response = await client.request_raw(

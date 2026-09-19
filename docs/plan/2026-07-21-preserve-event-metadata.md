@@ -4,7 +4,7 @@
 
 **Architecture:** Parse `header.create_time` as a UTC-aware `datetime`, accepting Unix seconds and milliseconds and returning `None` when absent or malformed. Copy `header` and `event` into typed DTO mappings so new protocol fields remain available without changing trust boundaries. Keep `download_file()` byte-compatible and add an opt-in method returning the existing `BinaryResponse` metadata parsed from response headers
 
-**Tech Stack:** Python 3.12, dataclasses, pytest, httpx mock transport, Ruff, Pyright
+**Tech Stack:** Python 3.12, dataclasses, pytest, httpx2 mock transport, Ruff, Pyright
 
 ## Global Constraints
 

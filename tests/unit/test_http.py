@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from feishulib.config import FeishuConfig
@@ -19,15 +19,15 @@ async def _record_sleep(target: list[float], delay: float) -> None:
 async def test_retries_429_then_returns_data() -> None:
     attempts = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
-            return httpx.Response(429, headers={"Retry-After": "0"}, request=request)
-        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_1"}}, request=request)
+            return httpx2.Response(429, headers={"Retry-After": "0"}, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"message_id": "om_1"}}, request=request)
 
     sleeps: list[float] = []
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     client = FeishuHttpClient(
         FeishuConfig(app_id="cli_test", app_secret="secret"),
         session,
@@ -45,10 +45,10 @@ async def test_retries_429_then_returns_data() -> None:
 
 @pytest.mark.asyncio
 async def test_business_error_is_not_retried() -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"code": 230001, "msg": "invalid content"}, request=request)
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"code": 230001, "msg": "invalid content"}, request=request)
 
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     client = FeishuHttpClient(FeishuConfig(app_id="cli_test", app_secret="secret"), session)
 
     with pytest.raises(FeishuApiError) as raised:
@@ -63,12 +63,12 @@ async def test_business_error_is_not_retried() -> None:
 async def test_retries_server_errors(status: int) -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(status, request=request)
+        return httpx2.Response(status, request=request)
 
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     client = FeishuHttpClient(
         FeishuConfig(app_id="id", app_secret="secret", max_retries=1),
         session,
@@ -85,12 +85,12 @@ async def test_retries_server_errors(status: int) -> None:
 
 @pytest.mark.asyncio
 async def test_rejects_non_retriable_and_invalid_json() -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("bad"):
-            return httpx.Response(400, json={"msg": "bad request"}, request=request)
-        return httpx.Response(200, text="not-json", request=request)
+            return httpx2.Response(400, json={"msg": "bad request"}, request=request)
+        return httpx2.Response(200, text="not-json", request=request)
 
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     client = FeishuHttpClient(FeishuConfig(app_id="id", app_secret="secret"), session)
     with pytest.raises(FeishuHttpStatusError) as status_error:
         await client.request_json("GET", "/open-apis/bad")
@@ -102,10 +102,10 @@ async def test_rejects_non_retriable_and_invalid_json() -> None:
 
 @pytest.mark.asyncio
 async def test_binary_json_error_is_not_returned_as_content() -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, headers={"Content-Type": "application/json"}, json={"code": 123, "msg": "no"}, request=request)
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, headers={"Content-Type": "application/json"}, json={"code": 123, "msg": "no"}, request=request)
 
-    session = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     client = FeishuHttpClient(FeishuConfig(app_id="id", app_secret="secret"), session)
     with pytest.raises(FeishuApiError):
         await client.request_bytes("GET", "/open-apis/im/v1/messages/om/resources/key")

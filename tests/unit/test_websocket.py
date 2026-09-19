@@ -2,7 +2,7 @@ import asyncio
 import json
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 
 from feishulib.channel import EventChannel
@@ -29,7 +29,7 @@ class _Connection:
 
 @pytest.mark.asyncio
 async def test_close_is_idempotent_without_starting() -> None:
-    session = httpx.AsyncClient()
+    session = httpx2.AsyncClient()
     client = FeishuWebSocket(FeishuConfig(app_id="id", app_secret="secret"), EventChannel(FeishuConfig(app_id="id", app_secret="secret")), session=session)
     await client.close()
     await client.close()
@@ -41,9 +41,9 @@ async def test_close_is_idempotent_without_starting() -> None:
 async def test_discovers_endpoint_sends_ping_and_acks_data_frame() -> None:
     connection = _Connection()
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.url.path == "/callback/ws/endpoint"
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json={"code": 0, "data": {"URL": "wss://example.test/ws?device_id=d&service_id=7", "ClientConfig": {"PingInterval": 5}}},
             request=request,
@@ -55,7 +55,7 @@ async def test_discovers_endpoint_sends_ping_and_acks_data_frame() -> None:
 
     config = FeishuConfig(app_id="id", app_secret="secret")
     channel = EventChannel(config)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuWebSocket(config, channel, session=session, connector=connector)
         await client.start()
         assert decode_frame(connection.sent[0]).headers == {"type": "ping"}
@@ -79,8 +79,8 @@ def _response_code(connection: _Connection) -> int:
 async def test_invalid_event_is_acknowledged_without_closing_connection(caplog: pytest.LogCaptureFixture) -> None:
     connection = _Connection()
 
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             json={"code": 0, "data": {"URL": "wss://example.test/ws?service_id=7"}},
             request=request,
@@ -91,7 +91,7 @@ async def test_invalid_event_is_acknowledged_without_closing_connection(caplog: 
 
     config = FeishuConfig(app_id="id", app_secret="secret")
     channel = EventChannel(config)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuWebSocket(config, channel, session=session, connector=connector)
         await client.start()
         invalid_payload = b'{"schema":"2.0","header":{"event_type":"p2.unknown"},"event":{"secret":"do-not-log"}}'
@@ -107,8 +107,8 @@ async def test_invalid_event_is_acknowledged_without_closing_connection(caplog: 
 async def test_invalid_card_handler_result_is_reported_as_retryable_failure() -> None:
     connection = _Connection()
 
-    async def endpoint(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def endpoint(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             json={"code": 0, "data": {"URL": "wss://example.test/ws?service_id=7"}},
             request=request,
@@ -124,7 +124,7 @@ async def test_invalid_card_handler_result_is_reported_as_retryable_failure() ->
         return {"toast": "not-a-CardActionResponse"}
 
     channel.on("card_action", handler)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(endpoint)) as session:
         client = FeishuWebSocket(config, channel, session=session, connector=connector)
         await client.start()
         payload = Path("tests/fixtures/card_action.json").read_bytes()
@@ -204,8 +204,8 @@ async def test_run_forever_retries_an_initial_connector_failure() -> None:
     delays: list[float] = []
     connected = asyncio.Event()
 
-    async def endpoint(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def endpoint(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             json={"code": 0, "data": {"URL": "wss://example.test/ws?service_id=7"}},
             request=request,
@@ -224,7 +224,7 @@ async def test_run_forever_retries_an_initial_connector_failure() -> None:
 
     config = FeishuConfig(app_id="id", app_secret="secret", ws_reconnect_jitter_ratio=0)
     channel = EventChannel(config)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(endpoint)) as session:
         client = FeishuWebSocket(
             config,
             channel,
@@ -250,8 +250,8 @@ async def test_context_manager_retries_an_initial_connector_failure_in_run_forev
     delays: list[float] = []
     connected = asyncio.Event()
 
-    async def endpoint(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def endpoint(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             json={"code": 0, "data": {"URL": "wss://example.test/ws?service_id=7"}},
             request=request,
@@ -271,7 +271,7 @@ async def test_context_manager_retries_an_initial_connector_failure_in_run_forev
     config = FeishuConfig(app_id="id", app_secret="secret", ws_reconnect_jitter_ratio=0)
     channel = EventChannel(config)
     async with (
-        httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session,
+        httpx2.AsyncClient(transport=httpx2.MockTransport(endpoint)) as session,
         FeishuWebSocket(
             config,
             channel,
@@ -298,8 +298,8 @@ async def test_reconnect_backoff_grows_for_repeated_post_connect_disconnects() -
     config = FeishuConfig(app_id="id", app_secret="secret", ws_reconnect_jitter_ratio=0)
     channel = EventChannel(config)
 
-    async def endpoint(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def endpoint(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             json={"code": 0, "data": {"URL": "wss://example.test/ws?service_id=7"}},
             request=request,
@@ -308,7 +308,7 @@ async def test_reconnect_backoff_grows_for_repeated_post_connect_disconnects() -
     async def connector(url: str) -> _Connection:
         return _Connection()
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(endpoint)) as session:
         client = FeishuWebSocket(config, channel, session=session, connector=connector, sleep=lambda delay: _stop_after_three_delays(client, delays, delay))
         await client.run_forever()
 
@@ -333,8 +333,8 @@ async def test_reconnect_stops_when_previous_connection_cannot_close() -> None:
     config = FeishuConfig(app_id="id", app_secret="secret", ws_close_timeout_seconds=0.01)
     channel = EventChannel(config)
 
-    async def endpoint(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def endpoint(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             json={"code": 0, "data": {"URL": "wss://example.test/ws?service_id=7"}},
             request=request,
@@ -348,7 +348,7 @@ async def test_reconnect_stops_when_previous_connection_cannot_close() -> None:
     async def sleep(delay: float) -> None:
         raise AssertionError("reconnect must not proceed after a close timeout")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(endpoint)) as session:
         client = FeishuWebSocket(config, channel, session=session, connector=connector, sleep=sleep)
         try:
             with pytest.raises(FeishuWebSocketError, match="close timed out"):
@@ -359,7 +359,7 @@ async def test_reconnect_stops_when_previous_connection_cannot_close() -> None:
     assert connector_calls == 1
 
 
-class _FailingCloseSession(httpx.AsyncClient):
+class _FailingCloseSession(httpx2.AsyncClient):
     async def aclose(self) -> None:
         raise OSError("session close failed")
 

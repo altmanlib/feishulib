@@ -6,7 +6,7 @@ from typing import Literal, Self
 from urllib.parse import quote
 from uuid import uuid4
 
-import httpx
+import httpx2
 
 from feishulib.auth import TenantAccessTokenManager
 from feishulib.config import FeishuConfig
@@ -28,10 +28,10 @@ from feishulib.models import (
 class FeishuClient:
     """Facade for the selected Feishu IM REST surface."""
 
-    def __init__(self, config: FeishuConfig, *, session: httpx.AsyncClient | None = None) -> None:
+    def __init__(self, config: FeishuConfig, *, session: httpx2.AsyncClient | None = None) -> None:
         self.config = config
         self._owns_session = session is None
-        self._session = session if session is not None else httpx.AsyncClient()
+        self._session = session if session is not None else httpx2.AsyncClient()
         self._http = FeishuHttpClient(config, self._session)
         self._tokens = TenantAccessTokenManager(config, self._http)
 
@@ -203,7 +203,7 @@ class FeishuClient:
         headers: Mapping[str, str] | None = None,
         access_token: str | None = None,
         retry: bool | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         """Call an arbitrary Feishu Open API endpoint and return its HTTP response."""
         self._validate_generic_request(path, headers, access_token)
         self._validate_raw_body(json_body, content, data, files)
@@ -277,7 +277,7 @@ class FeishuClient:
         files: RequestFiles | None,
         headers: Mapping[str, str] | None,
         retry: bool,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         token = await self._tokens.get_token()
         try:
             return await self._http.request_raw(

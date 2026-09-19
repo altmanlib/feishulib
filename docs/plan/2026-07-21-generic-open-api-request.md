@@ -2,16 +2,16 @@
 
 **Goal:** Expose stable asynchronous generic request methods for every Feishu Open API request and response shape without giving up token management, safe retry behavior, envelope validation, or typed JSON convenience results.
 
-**Architecture:** `FeishuClient.request()` is the JSON-envelope convenience facade and returns `ApiResponse`. `FeishuClient.request_raw()` is the universal facade for multipart uploads, raw content, arbitrary JSON values, and binary responses; it returns a successful `httpx.Response` without parsing a business envelope. Both delegate to private authorized transport helpers, use a managed tenant token by default, and accept an explicit user or app bearer token that is never refreshed. Generic safe methods retry transient failures by default; generic unsafe methods require an explicit `retry=True` opt-in.
+**Architecture:** `FeishuClient.request()` is the JSON-envelope convenience facade and returns `ApiResponse`. `FeishuClient.request_raw()` is the universal facade for multipart uploads, raw content, arbitrary JSON values, and binary responses; it returns a successful `httpx2.Response` without parsing a business envelope. Both delegate to private authorized transport helpers, use a managed tenant token by default, and accept an explicit user or app bearer token that is never refreshed. Generic safe methods retry transient failures by default; generic unsafe methods require an explicit `retry=True` opt-in.
 
-**Tech Stack:** Python 3.12, `httpx`, dataclasses, pytest + pytest-asyncio mock transport, Ruff, Pyright
+**Tech Stack:** Python 3.12, `httpx2`, dataclasses, pytest + pytest-asyncio mock transport, Ruff, Pyright
 
 ## Global Constraints
 
 - Python version floor remains `>=3.12`.
 - Do not add runtime dependencies.
 - The public method must only target relative Feishu Open API paths beginning with `/open-apis/`; absolute URLs and callback endpoints are not exposed through this facade.
-- `request()` returns `ApiResponse` and validates Feishu's JSON `code` envelope; `request_raw()` returns an unparsed successful `httpx.Response` for multipart, raw-content, arbitrary-JSON, and binary-response endpoints.
+- `request()` returns `ApiResponse` and validates Feishu's JSON `code` envelope; `request_raw()` returns an unparsed successful `httpx2.Response` for multipart, raw-content, arbitrary-JSON, and binary-response endpoints.
 - Default authentication uses the managed tenant access token and retries once after a 401; a non-empty explicit `access_token` is sent as `Bearer <access_token>` and is not refreshed on 401.
 - Generic safe methods (`GET`, `HEAD`, `OPTIONS`, and `TRACE`) retry transient failures by default. Generic unsafe methods make exactly one transport attempt unless the caller passes `retry=True`.
 - Caller headers are retained except that `Authorization` is rejected case-insensitively, so credential source is unambiguous and is never accidentally logged or overridden.
@@ -60,7 +60,7 @@ response = await client.request(
 )
 ```
 
-`request_raw()` is the escape hatch for endpoint-specific payload and response shapes. It accepts mutually exclusive `json_body` and `content` inputs, or `data` together with `files` for multipart forms. Its response is already fully read by `httpx.AsyncClient`; streaming response lifetime management remains outside this client contract.
+`request_raw()` is the escape hatch for endpoint-specific payload and response shapes. It accepts mutually exclusive `json_body` and `content` inputs, or `data` together with `files` for multipart forms. Its response is already fully read by `httpx2.AsyncClient`; streaming response lifetime management remains outside this client contract.
 
 ## File Structure
 
@@ -78,7 +78,7 @@ response = await client.request(
 
 **Interfaces:**
 
-- Consumes: existing `FeishuClient(config, session=...)` and `httpx.MockTransport` test pattern.
+- Consumes: existing `FeishuClient(config, session=...)` and `httpx2.MockTransport` test pattern.
 - Produces: executable behavioral specifications for `FeishuClient.request()`.
 
 - [ ] **Step 1: Add the tenant-token request test**
@@ -90,18 +90,18 @@ Append this test to `tests/unit/test_client.py`:
 async def test_generic_request_sends_json_and_managed_tenant_token() -> None:
     observed: dict[str, object] = {}
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
         observed["method"] = request.method
         observed["path"] = request.url.path
         observed["params"] = dict(request.url.params)
         observed["authorization"] = request.headers["Authorization"]
         observed["caller_trace"] = request.headers["X-Caller-Trace"]
         observed["body"] = json.loads(request.content)
-        return httpx.Response(200, json={"code": 0, "data": {"items": [{"open_id": "ou_1"}]}}, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"items": [{"open_id": "ou_1"}]}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.request(
             "POST",
@@ -130,14 +130,14 @@ async def test_generic_request_uses_explicit_token_without_refreshing_it() -> No
     paths: list[str] = []
     authorizations: list[str] = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         paths.append(request.url.path)
         if request.url.path.endswith("tenant_access_token/internal"):
             raise AssertionError("explicit token requests must not obtain a tenant token")
         authorizations.append(request.headers["Authorization"])
-        return httpx.Response(200, json={"code": 0, "data": {"name": "Ada"}}, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"name": "Ada"}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.request("GET", "/open-apis/authen/v1/user_info", access_token="user-token")
 
@@ -150,13 +150,13 @@ async def test_generic_request_uses_explicit_token_without_refreshing_it() -> No
 async def test_generic_request_does_not_refresh_an_explicit_token_after_401() -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         calls += 1
         assert request.headers["Authorization"] == "Bearer user-token"
-        return httpx.Response(401, request=request)
+        return httpx2.Response(401, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         with pytest.raises(FeishuHttpStatusError) as raised:
             await client.request("GET", "/open-apis/authen/v1/user_info", access_token="user-token")
@@ -170,17 +170,17 @@ async def test_generic_request_retries_once_after_401_with_refreshed_managed_tok
     token_calls = 0
     authorizations: list[str] = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal token_calls
         if request.url.path.endswith("tenant_access_token/internal"):
             token_calls += 1
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": f"t{token_calls}", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": f"t{token_calls}", "expire": 7200}, request=request)
         authorizations.append(request.headers["Authorization"])
         if request.headers["Authorization"] == "Bearer t1":
-            return httpx.Response(401, request=request)
-        return httpx.Response(200, json={"code": 0, "data": {"ok": True}}, request=request)
+            return httpx2.Response(401, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"ok": True}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.request("GET", "/open-apis/any/v1/resource")
 
@@ -205,7 +205,7 @@ async def test_generic_request_rejects_ambiguous_or_non_open_api_inputs(
     access_token: str | None,
     message: str,
 ) -> None:
-    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500, request=request))) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(lambda request: httpx2.Response(500, request=request))) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         with pytest.raises(ValueError, match=message):
             await client.request("GET", path, headers=headers, access_token=access_token)

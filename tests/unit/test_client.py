@@ -1,6 +1,6 @@
 import json
 
-import httpx
+import httpx2
 import pytest
 
 from feishulib.client import FeishuClient
@@ -12,13 +12,13 @@ from feishulib.exceptions import FeishuHttpStatusError, FeishuTransientError
 async def test_get_tenant_access_token_exposes_cached_and_forced_refresh() -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         assert request.url.path.endswith("tenant_access_token/internal")
         calls += 1
-        return httpx.Response(200, json={"code": 0, "tenant_access_token": f"t{calls}", "expire": 7200}, request=request)
+        return httpx2.Response(200, json={"code": 0, "tenant_access_token": f"t{calls}", "expire": 7200}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         assert await client.get_tenant_access_token() == "t1"
         assert await client.get_tenant_access_token() == "t1"
@@ -31,16 +31,16 @@ async def test_get_tenant_access_token_exposes_cached_and_forced_refresh() -> No
 async def test_send_text_uses_structured_content_and_tenant_token() -> None:
     observed: dict[str, object] = {}
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "t_token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "t_token", "expire": 7200}, request=request)
         observed["query"] = dict(request.url.params)
         observed["authorization"] = request.headers["Authorization"]
         observed["body"] = request.content
-        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_1", "chat_id": "oc_1"}}, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"message_id": "om_1", "chat_id": "oc_1"}}, request=request)
 
     async with (
-        httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session,
+        httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session,
         FeishuClient(FeishuConfig(app_id="cli_test", app_secret="secret"), session=session) as client,
     ):
         receipt = await client.send_text("oc_1", "hello")
@@ -56,15 +56,15 @@ async def test_send_text_uses_structured_content_and_tenant_token() -> None:
 async def test_reply_update_delete_and_download_quote_path_parameters() -> None:
     paths: list[str] = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         paths.append(request.url.path)
         if request.url.path.endswith("internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "t", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "t", "expire": 7200}, request=request)
         if "/resources/" in request.url.path:
-            return httpx.Response(200, headers={"Content-Disposition": 'attachment; filename="x.txt"', "Content-Type": "text/plain; charset=utf-8"}, content=b"file", request=request)
-        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om"}}, request=request)
+            return httpx2.Response(200, headers={"Content-Disposition": 'attachment; filename="x.txt"', "Content-Type": "text/plain; charset=utf-8"}, content=b"file", request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"message_id": "om"}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         await client.reply_text("om/a", "reply")
         await client.update_card("om/a", {"elements": []})
@@ -77,19 +77,19 @@ async def test_reply_update_delete_and_download_quote_path_parameters() -> None:
 async def test_download_file_with_metadata_preserves_response_metadata() -> None:
     resource_content_type: str | None = None
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal resource_content_type
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "t", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "t", "expire": 7200}, request=request)
         resource_content_type = request.headers.get("Content-Type")
-        return httpx.Response(
+        return httpx2.Response(
             200,
             headers={"Content-Disposition": 'attachment; filename="x.txt"', "Content-Type": "text/plain; charset=utf-8"},
             content=b"file",
             request=request,
         )
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.download_file_with_metadata("om/a", "key/a")
 
@@ -103,18 +103,18 @@ async def test_download_file_with_metadata_preserves_response_metadata() -> None
 async def test_retries_401_once_and_reads_bot_identity() -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         if request.url.path.endswith("internal"):
             calls += 1
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": f"t{calls}", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": f"t{calls}", "expire": 7200}, request=request)
         if request.url.path.endswith("/info"):
             if request.headers["Authorization"] == "Bearer t1":
-                return httpx.Response(401, request=request)
-            return httpx.Response(200, json={"code": 0, "data": {"bot": {"open_id": "ou_bot"}}}, request=request)
+                return httpx2.Response(401, request=request)
+            return httpx2.Response(200, json={"code": 0, "data": {"bot": {"open_id": "ou_bot"}}}, request=request)
         raise AssertionError("unexpected path")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         assert (await client.get_bot_identity()).open_id == "ou_bot"
     assert calls == 2
@@ -124,15 +124,15 @@ async def test_retries_401_once_and_reads_bot_identity() -> None:
 async def test_send_text_generates_one_uuid_and_reuses_it_across_transport_retry() -> None:
     message_bodies: list[dict[str, object]] = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "token", "expire": 7200}, request=request)
         message_bodies.append(json.loads(request.content))
         if len(message_bodies) == 1:
-            return httpx.Response(500, request=request)
-        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_1"}}, request=request)
+            return httpx2.Response(500, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"message_id": "om_1"}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(
             FeishuConfig(
                 app_id="id",
@@ -156,15 +156,15 @@ async def test_send_text_generates_one_uuid_and_reuses_it_across_transport_retry
 async def test_reply_message_preserves_explicit_uuid_across_transport_retry() -> None:
     message_bodies: list[dict[str, object]] = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "token", "expire": 7200}, request=request)
         message_bodies.append(json.loads(request.content))
         if len(message_bodies) == 1:
-            return httpx.Response(503, request=request)
-        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_2"}}, request=request)
+            return httpx2.Response(503, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"message_id": "om_2"}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(
             FeishuConfig(
                 app_id="id",
@@ -184,18 +184,18 @@ async def test_reply_message_preserves_explicit_uuid_across_transport_retry() ->
 async def test_generic_request_sends_json_and_managed_tenant_token() -> None:
     observed: dict[str, object] = {}
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
         observed["method"] = request.method
         observed["path"] = request.url.path
         observed["params"] = dict(request.url.params)
         observed["authorization"] = request.headers["Authorization"]
         observed["caller_trace"] = request.headers["X-Caller-Trace"]
         observed["body"] = json.loads(request.content)
-        return httpx.Response(200, json={"code": 0, "data": {"items": [{"open_id": "ou_1"}]}}, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"items": [{"open_id": "ou_1"}]}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.request(
             "POST",
@@ -219,14 +219,14 @@ async def test_generic_request_uses_explicit_token_without_refreshing_it() -> No
     paths: list[str] = []
     authorizations: list[str] = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         paths.append(request.url.path)
         if request.url.path.endswith("tenant_access_token/internal"):
             raise AssertionError("explicit token requests must not obtain a tenant token")
         authorizations.append(request.headers["Authorization"])
-        return httpx.Response(200, json={"code": 0, "data": {"name": "Ada"}}, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"name": "Ada"}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.request("GET", "/open-apis/authen/v1/user_info", access_token="user-token")
 
@@ -239,13 +239,13 @@ async def test_generic_request_uses_explicit_token_without_refreshing_it() -> No
 async def test_generic_request_does_not_refresh_an_explicit_token_after_401() -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         calls += 1
         assert request.headers["Authorization"] == "Bearer user-token"
-        return httpx.Response(401, request=request)
+        return httpx2.Response(401, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         with pytest.raises(FeishuHttpStatusError) as raised:
             await client.request("GET", "/open-apis/authen/v1/user_info", access_token="user-token")
@@ -259,17 +259,17 @@ async def test_generic_request_retries_once_after_401_with_refreshed_managed_tok
     token_calls = 0
     authorizations: list[str] = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal token_calls
         if request.url.path.endswith("tenant_access_token/internal"):
             token_calls += 1
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": f"t{token_calls}", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": f"t{token_calls}", "expire": 7200}, request=request)
         authorizations.append(request.headers["Authorization"])
         if request.headers["Authorization"] == "Bearer t1":
-            return httpx.Response(401, request=request)
-        return httpx.Response(200, json={"code": 0, "data": {"ok": True}}, request=request)
+            return httpx2.Response(401, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"ok": True}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.request("GET", "/open-apis/any/v1/resource")
 
@@ -294,7 +294,7 @@ async def test_generic_request_rejects_ambiguous_or_non_open_api_inputs(
     access_token: str | None,
     message: str,
 ) -> None:
-    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500, request=request))) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(lambda request: httpx2.Response(500, request=request))) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         with pytest.raises(ValueError, match=message):
             await client.request("GET", path, headers=headers, access_token=access_token)
@@ -304,14 +304,14 @@ async def test_generic_request_rejects_ambiguous_or_non_open_api_inputs(
 async def test_generic_request_does_not_retry_unsafe_methods_by_default() -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
         calls += 1
-        return httpx.Response(500, request=request)
+        return httpx2.Response(500, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         with pytest.raises(FeishuTransientError) as raised:
             await client.request("POST", "/open-apis/any/v1/resources", json_body={"name": "once"})
@@ -324,16 +324,16 @@ async def test_generic_request_does_not_retry_unsafe_methods_by_default() -> Non
 async def test_generic_request_retries_unsafe_methods_only_when_explicitly_enabled() -> None:
     calls = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
         calls += 1
         if calls == 1:
-            return httpx.Response(503, request=request)
-        return httpx.Response(200, json={"code": 0, "data": {"name": "retried"}}, request=request)
+            return httpx2.Response(503, request=request)
+        return httpx2.Response(200, json={"code": 0, "data": {"name": "retried"}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(
             FeishuConfig(
                 app_id="id",
@@ -354,15 +354,15 @@ async def test_generic_request_retries_unsafe_methods_only_when_explicitly_enabl
 async def test_generic_raw_request_supports_multipart_upload_and_binary_response() -> None:
     observed: dict[str, object] = {}
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("tenant_access_token/internal"):
-            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
+            return httpx2.Response(200, json={"code": 0, "tenant_access_token": "tenant-token", "expire": 7200}, request=request)
         observed["authorization"] = request.headers["Authorization"]
         observed["content_type"] = request.headers["Content-Type"]
         observed["body"] = request.content
-        return httpx.Response(201, headers={"Content-Type": "application/octet-stream"}, content=b"uploaded", request=request)
+        return httpx2.Response(201, headers={"Content-Type": "application/octet-stream"}, content=b"uploaded", request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         response = await client.request_raw(
             "POST",
@@ -383,7 +383,7 @@ async def test_generic_raw_request_supports_multipart_upload_and_binary_response
 
 @pytest.mark.asyncio
 async def test_generic_raw_request_rejects_conflicting_body_encodings() -> None:
-    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500, request=request))) as session:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(lambda request: httpx2.Response(500, request=request))) as session:
         client = FeishuClient(FeishuConfig(app_id="id", app_secret="secret"), session=session)
         with pytest.raises(ValueError, match="json_body cannot be combined with content, data, or files"):
             await client.request_raw(
