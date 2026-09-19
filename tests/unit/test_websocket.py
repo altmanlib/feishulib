@@ -270,20 +270,22 @@ async def test_context_manager_retries_an_initial_connector_failure_in_run_forev
 
     config = FeishuConfig(app_id="id", app_secret="secret", ws_reconnect_jitter_ratio=0)
     channel = EventChannel(config)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session:
-        async with FeishuWebSocket(
+    async with (
+        httpx.AsyncClient(transport=httpx.MockTransport(endpoint)) as session,
+        FeishuWebSocket(
             config,
             channel,
             session=session,
             connector=connector,
             sleep=sleep,
             random_float=lambda: 0.0,
-        ) as client:
-            assert client.state is ConnectionState.STOPPED
-            runner = asyncio.create_task(client.run_forever())
-            await asyncio.wait_for(connected.wait(), timeout=0.2)
-            await client.close()
-            await asyncio.wait_for(runner, timeout=0.2)
+        ) as client,
+    ):
+        assert client.state is ConnectionState.STOPPED
+        runner = asyncio.create_task(client.run_forever())
+        await asyncio.wait_for(connected.wait(), timeout=0.2)
+        await client.close()
+        await asyncio.wait_for(runner, timeout=0.2)
 
     assert connector_calls == 2
     assert delays == [config.ws_reconnect_base_seconds]

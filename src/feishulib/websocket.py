@@ -22,7 +22,14 @@ from feishulib.exceptions import (
     FeishuWebSocketError,
 )
 from feishulib.http import FeishuHttpClient
-from feishulib.protocol import FrameMethod, WireFrame, decode_frame, encode_frame, make_data_response, make_ping
+from feishulib.protocol import (
+    FrameMethod,
+    WireFrame,
+    decode_frame,
+    encode_frame,
+    make_data_response,
+    make_ping,
+)
 
 
 class ConnectionState(StrEnum):
@@ -174,7 +181,8 @@ class FeishuWebSocket:
             except TimeoutError:
                 await self._send(make_ping(self._service_id))
                 if time.monotonic() - self._last_pong > self.config.ws_ping_timeout_seconds:
-                    raise FeishuWebSocketError("WebSocket pong timeout")
+                    # The elapsed ping interval is expected control flow, not the cause.
+                    raise FeishuWebSocketError("WebSocket pong timeout") from None
                 continue
             frame = decode_frame(raw)
             if frame.method is FrameMethod.CONTROL:

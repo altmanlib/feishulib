@@ -100,7 +100,7 @@ class EventChannel:
                 if not item.result.done():
                     item.result.set_exception(FeishuEventHandlerError("shutdown", error))
                 raise
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - handler errors are user-defined and must be surfaced per event
                 if not item.result.done():
                     item.result.set_exception(FeishuEventHandlerError("handler", error))
             finally:

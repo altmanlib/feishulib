@@ -3,8 +3,8 @@
 import asyncio
 import os
 
-from feishulib import FeishuClient, FeishuConfig
 from _common import load_dotenv
+from feishulib import FeishuClient, FeishuConfig
 
 CARD = {"elements": [{"tag": "div", "text": {"tag": "plain_text", "content": "Updated by update_card"}}]}
 

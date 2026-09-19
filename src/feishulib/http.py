@@ -3,7 +3,14 @@
 import asyncio
 import json
 import random
-from collections.abc import AsyncIterable, Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterable,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from email.message import Message
 from typing import IO, cast
 

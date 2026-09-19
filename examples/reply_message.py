@@ -3,8 +3,8 @@
 import asyncio
 import os
 
-from feishulib import FeishuClient, FeishuConfig, ReplyMessage
 from _common import load_dotenv
+from feishulib import FeishuClient, FeishuConfig, ReplyMessage
 
 
 async def main() -> None:

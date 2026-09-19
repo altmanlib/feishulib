@@ -2,7 +2,12 @@ import httpx
 import pytest
 
 from feishulib.config import FeishuConfig
-from feishulib.exceptions import FeishuApiError, FeishuHttpStatusError, FeishuProtocolError, FeishuTransientError
+from feishulib.exceptions import (
+    FeishuApiError,
+    FeishuHttpStatusError,
+    FeishuProtocolError,
+    FeishuTransientError,
+)
 from feishulib.http import FeishuHttpClient, redact_headers
 
 

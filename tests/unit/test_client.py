@@ -39,9 +39,11 @@ async def test_send_text_uses_structured_content_and_tenant_token() -> None:
         observed["body"] = request.content
         return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_1", "chat_id": "oc_1"}}, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session:
-        async with FeishuClient(FeishuConfig(app_id="cli_test", app_secret="secret"), session=session) as client:
-            receipt = await client.send_text("oc_1", "hello")
+    async with (
+        httpx.AsyncClient(transport=httpx.MockTransport(handler)) as session,
+        FeishuClient(FeishuConfig(app_id="cli_test", app_secret="secret"), session=session) as client,
+    ):
+        receipt = await client.send_text("oc_1", "hello")
 
     assert receipt.message_id == "om_1"
     assert observed["query"] == {"receive_id_type": "chat_id"}

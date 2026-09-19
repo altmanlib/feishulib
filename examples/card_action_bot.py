@@ -3,8 +3,14 @@
 import asyncio
 import os
 
-from feishulib import CardActionResponse, EventChannel, FeishuConfig, FeishuWebSocket, Toast
 from _common import load_dotenv
+from feishulib import (
+    CardActionResponse,
+    EventChannel,
+    FeishuConfig,
+    FeishuWebSocket,
+    Toast,
+)
 from feishulib.events import CardActionEvent
 
 

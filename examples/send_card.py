@@ -3,8 +3,8 @@
 import asyncio
 import os
 
-from feishulib import FeishuClient, FeishuConfig
 from _common import load_dotenv
+from feishulib import FeishuClient, FeishuConfig
 
 CARD = {"config": {"wide_screen_mode": True}, "elements": [{"tag": "div", "text": {"tag": "lark_md", "content": "**Hello** from a card"}}]}
 
