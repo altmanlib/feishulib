@@ -1,6 +1,6 @@
 """Async Pythonic client for selected Feishu IM capabilities."""
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
 
 from feishulib.channel import EventChannel
 from feishulib.client import FeishuClient
@@ -34,6 +34,11 @@ from feishulib.models import (
     UpdateMessage,
 )
 from feishulib.websocket import FeishuWebSocket
+
+try:
+    __version__ = version("feishulib")
+except PackageNotFoundError:  # pragma: no cover - source tree without installed distribution metadata
+    __version__ = "0.0.0"
 
 __all__ = [
     "BinaryResponse",

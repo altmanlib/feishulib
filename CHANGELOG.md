@@ -10,6 +10,10 @@ All notable changes to `feishulib` are documented here.
 - `FeishuClient.download_file_with_metadata()` for downloading resource bytes together with response-derived filename and content type metadata.
 - UTC-aware event creation timestamps and raw schema 2.0 header/event mappings on `MessageEvent` and `CardActionEvent`.
 
+### Fixed
+
+- `feishulib.__version__` now reports the installed distribution version instead of a stale hardcoded value.
+
 ### Documentation
 
 - Expanded the Quick Start guide with a complete asynchronous example, environment-based credentials, common entry points, and links to runnable examples.
